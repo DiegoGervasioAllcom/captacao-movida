@@ -1,0 +1,38 @@
+# =========================================================================
+# Captacao Movida — producao.
+#   docker compose build   (usa .env para os build args NEXT_PUBLIC_*)
+#   docker compose up -d
+#
+# As variaveis vem do arquivo .env na raiz (copie de .env.production.example).
+# NEXT_PUBLIC_* precisam existir no BUILD (embutidas no bundle) E no runtime
+# (o servidor tambem as le). CLERK_SECRET_KEY e apenas runtime (segredo).
+# =========================================================================
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/}
+        NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL:-/}
+    image: captacao-movida:latest
+    container_name: captacao-movida
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Passa todas as variaveis do .env para o runtime (server le NEXT_PUBLIC_*
+    # e CLERK_SECRET_KEY em tempo de execucao).
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
