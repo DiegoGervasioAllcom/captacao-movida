@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import AuthCard from "@/components/AuthCard";
+import LoginScreen from "@/components/login/LoginScreen";
 import { roleFromClaims } from "@/lib/roles";
 
 // =========================================================================
@@ -19,5 +19,5 @@ export default async function HomePage() {
     redirect(role === "gestor" ? "/gestor" : "/vendedor");
   }
 
-  return <AuthCard />;
+  return <LoginScreen />;
 }
