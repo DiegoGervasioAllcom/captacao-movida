@@ -1,0 +1,291 @@
+/* =========================================================================
+   Tela "Nova Indicação" (area do vendedor) — componentizada a partir do
+   Figma "Tela Indicação Supper + SN Movida". Reaproveita os tokens de
+   src/app/globals.css (cor de fundo, dourado do botao/foco) sempre que ja
+   batem com o Figma; as cores de marca que ainda nao existiam como token
+   (roxo do "seminovos", laranja do "MOVIDA", tinta do cabecalho) ficam
+   documentadas aqui, no mesmo espirito do src/components/login/*.
+   ========================================================================= */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 14px var(--gutter);
+  background: var(--surface-container-lowest);
+  border-bottom: 1px solid var(--surface-container-highest);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Selo "Supper Certo Seguros" (asset real, extraido do Figma). */
+.logo {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+
+.titleGroup {
+  min-width: 0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #363c4f;
+  white-space: nowrap;
+}
+
+.titlePurple {
+  color: #7c4dff;
+}
+
+.titleOrange {
+  color: #f26a1b;
+}
+
+.tagline {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b5a2c;
+  background: #fdf1d6;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* =========================================================================
+   Card "Nova Indicação"
+   ========================================================================= */
+.card {
+  background: var(--surface-container-lowest);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  padding: 28px 32px 32px;
+}
+
+.card + .card {
+  margin-top: var(--space-6);
+}
+
+.cardTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: #363c4f;
+  margin-bottom: 4px;
+}
+
+.cardSub {
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  margin-bottom: var(--space-6);
+}
+
+/* =========================================================================
+   Formulario
+   ========================================================================= */
+.field {
+  margin-bottom: var(--space-5);
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4b5163;
+  margin-bottom: var(--space-2);
+}
+
+.input {
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  border: 1.5px solid var(--surface-container-highest);
+  border-radius: var(--radius);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input::placeholder {
+  color: var(--outline);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--harvest-gold);
+  box-shadow: 0 0 0 3px rgba(244, 158, 0, 0.22);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  margin-top: var(--space-1);
+}
+
+.err {
+  font-size: 12.5px;
+  color: var(--error);
+  margin-top: var(--space-1);
+}
+
+/* =========================================================================
+   Botao
+   ========================================================================= */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 15px 18px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #f4ab3d 0%, #eb9a2b 100%);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.05s;
+}
+
+.button:hover {
+  filter: brightness(0.97);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================================
+   Alertas
+   ========================================================================= */
+.alert {
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  margin-bottom: var(--space-4);
+}
+
+.alertOk {
+  background: rgba(37, 211, 102, 0.12);
+  color: var(--secondary);
+}
+
+.alertErr {
+  background: var(--error-container);
+  color: var(--on-error-container);
+}
+
+/* =========================================================================
+   "Minhas Indicações"
+   ========================================================================= */
+.listItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--muted-gray);
+}
+
+.listItem:last-child {
+  border-bottom: none;
+}
+
+.listName {
+  font-weight: 700;
+  color: #363c4f;
+}
+
+.listMeta {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+}
+
+.placa {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: var(--surface-container);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.empty {
+  text-align: center;
+  color: var(--on-surface-variant);
+  padding: var(--space-8) var(--space-4);
+}
+
+/* =========================================================================
+   Mobile
+   ========================================================================= */
+@media (max-width: 640px) {
+  .header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .title {
+    font-size: 16px;
+    white-space: normal;
+  }
+
+  .tagline {
+    font-size: 10px;
+  }
+
+  .actions {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .card {
+    padding: 22px 18px 26px;
+  }
+}

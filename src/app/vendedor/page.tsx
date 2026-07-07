@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
-import AppHeader from "@/components/AppHeader";
+import IndicacaoHeader from "@/components/vendedor/IndicacaoHeader";
 import CapturaForm from "@/components/CapturaForm";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { formatarDataHora } from "@/lib/format";
 import { lojaFromPublicMetadata } from "@/lib/loja";
 import type { Captacao } from "@/lib/types";
+import styles from "@/components/vendedor/indicacao.module.css";
 
 // =========================================================================
 // Area do vendedor: formulario de captacao + "minhas captacoes".
@@ -53,9 +54,9 @@ export default function VendedorPage() {
 
   return (
     <div className="cm-page">
-      <AppHeader papel="vendedor" />
-      <main className="cm-wrap" style={{ maxWidth: 720 }}>
-        <section className="cm-card">
+      <IndicacaoHeader loja={loja} />
+      <main className="cm-wrap" style={{ maxWidth: 760 }}>
+        <section className={styles.card}>
           {isLoaded && user && (
             <CapturaForm
               vendedorId={user.id}
@@ -67,33 +68,33 @@ export default function VendedorPage() {
           {!isLoaded && <p className="cm-muted">Carregando...</p>}
         </section>
 
-        <section className="cm-card" aria-labelledby="titulo-minhas">
-          <h2 id="titulo-minhas" className="cm-card-title">
-            Minhas Captacoes
+        <section className={styles.card} aria-labelledby="titulo-minhas">
+          <h2 id="titulo-minhas" className={styles.cardTitle}>
+            Minhas Indicações
           </h2>
 
           {carregando && <p className="cm-muted">Carregando...</p>}
           {erro && (
-            <div className="cm-alert cm-alert-err" role="alert">
+            <div className={`${styles.alert} ${styles.alertErr}`} role="alert">
               {erro}
             </div>
           )}
 
           {!carregando && !erro && captacoes.length === 0 && (
-            <p className="cm-empty">
-              Voce ainda nao registrou nenhuma captacao.
+            <p className={styles.empty}>
+              Você ainda não registrou nenhuma indicação.
             </p>
           )}
 
           {captacoes.map((c) => (
-            <div key={c.id} className="cm-list-item">
+            <div key={c.id} className={styles.listItem}>
               <div>
-                <div className="cm-list-name">{c.nome_cliente}</div>
-                <div className="cm-list-meta">
+                <div className={styles.listName}>{c.nome_cliente}</div>
+                <div className={styles.listMeta}>
                   {c.telefone} · {formatarDataHora(c.created_at)}
                 </div>
               </div>
-              <span className="cm-placa">{c.placa}</span>
+              <span className={styles.placa}>{c.placa}</span>
             </div>
           ))}
         </section>

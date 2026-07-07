@@ -9,6 +9,7 @@ import {
 } from "@/lib/validation";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import type { Captacao } from "@/lib/types";
+import styles from "./vendedor/indicacao.module.css";
 
 interface Props {
   vendedorId: string;
@@ -81,7 +82,7 @@ export default function CapturaForm({
       setTelefone("");
       setPlaca("");
       setErros({});
-      setSucesso("Cliente cadastrado com sucesso!");
+      setSucesso("Indicação cadastrada com sucesso!");
     } catch {
       setErroGeral(
         "Falha de rede. Verifique sua conexao e tente novamente."
@@ -93,28 +94,29 @@ export default function CapturaForm({
 
   return (
     <form onSubmit={aoEnviar} noValidate>
-      <h2 className="cm-card-title">Nova Captura</h2>
-      <p className="cm-card-sub">
-        Preencha os dados do veiculo e do cliente para iniciar a captacao.
-      </p>
+      <h2 className={styles.cardTitle}>Nova Indicação</h2>
+      <p className={styles.cardSub}>Preencha os dados abaixo.</p>
 
       {erroGeral && (
-        <div className="cm-alert cm-alert-err" role="alert">
+        <div className={`${styles.alert} ${styles.alertErr}`} role="alert">
           {erroGeral}
         </div>
       )}
       {sucesso && (
-        <div className="cm-alert cm-alert-ok" role="status">
+        <div className={`${styles.alert} ${styles.alertOk}`} role="status">
           {sucesso}
         </div>
       )}
 
-      <div className="cm-field">
-        <label htmlFor="nome">Nome do cliente</label>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="nome">
+          Nome do cliente
+        </label>
         <input
           id="nome"
           name="nome"
           type="text"
+          className={styles.input}
           autoComplete="name"
           placeholder="Ex: Joao da Silva"
           value={nome}
@@ -123,18 +125,21 @@ export default function CapturaForm({
           aria-describedby={erros.nome_cliente ? "err-nome" : undefined}
         />
         {erros.nome_cliente && (
-          <p id="err-nome" className="cm-err">
+          <p id="err-nome" className={styles.err}>
             {erros.nome_cliente}
           </p>
         )}
       </div>
 
-      <div className="cm-field">
-        <label htmlFor="telefone">Telefone de contato</label>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="telefone">
+          Telefone de contato
+        </label>
         <input
           id="telefone"
           name="telefone"
           type="tel"
+          className={styles.input}
           inputMode="numeric"
           autoComplete="tel"
           placeholder="(00) 00000-0000"
@@ -144,18 +149,21 @@ export default function CapturaForm({
           aria-describedby={erros.telefone ? "err-tel" : undefined}
         />
         {erros.telefone && (
-          <p id="err-tel" className="cm-err">
+          <p id="err-tel" className={styles.err}>
             {erros.telefone}
           </p>
         )}
       </div>
 
-      <div className="cm-field">
-        <label htmlFor="placa">Placa do veiculo</label>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="placa">
+          Placa do veiculo
+        </label>
         <input
           id="placa"
           name="placa"
           type="text"
+          className={styles.input}
           autoCapitalize="characters"
           placeholder="ABC1D23"
           value={placa}
@@ -165,22 +173,18 @@ export default function CapturaForm({
           style={{ textTransform: "uppercase", letterSpacing: "0.08em" }}
         />
         {erros.placa ? (
-          <p id="err-placa" className="cm-err">
+          <p id="err-placa" className={styles.err}>
             {erros.placa}
           </p>
         ) : (
-          <p id="hint-placa" className="cm-hint">
+          <p id="hint-placa" className={styles.hint}>
             Aceita Mercosul (ABC1D23) e modelo antigo (ABC1234).
           </p>
         )}
       </div>
 
-      <button
-        type="submit"
-        className="cm-btn"
-        disabled={estado === "enviando"}
-      >
-        {estado === "enviando" ? "Cadastrando..." : "Cadastrar Cliente"}
+      <button type="submit" className={styles.button} disabled={estado === "enviando"}>
+        {estado === "enviando" ? "Cadastrando..." : "Cadastrar Indicação"}
       </button>
     </form>
   );
