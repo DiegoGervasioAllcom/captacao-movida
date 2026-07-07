@@ -13,6 +13,7 @@ export interface Captacao {
   id: string;
   vendedor_id: string;
   vendedor_nome: string | null;
+  loja: string | null;
   nome_cliente: string;
   telefone: string;
   placa: string;
@@ -23,6 +24,7 @@ export interface Captacao {
 export interface NovaCaptacao {
   vendedor_id: string;
   vendedor_nome: string | null;
+  loja: string | null;
   nome_cliente: string;
   telefone: string;
   placa: string;

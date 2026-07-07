@@ -6,6 +6,7 @@ import AppHeader from "@/components/AppHeader";
 import CapturaForm from "@/components/CapturaForm";
 import { createBrowserSupabaseClient } from "@/lib/supabase";
 import { formatarDataHora } from "@/lib/format";
+import { lojaFromPublicMetadata } from "@/lib/loja";
 import type { Captacao } from "@/lib/types";
 
 // =========================================================================
@@ -20,6 +21,7 @@ export default function VendedorPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   const nome = user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? null;
+  const loja = lojaFromPublicMetadata(user?.publicMetadata);
 
   // Carrega as captacoes do vendedor logado.
   const carregar = useCallback(async () => {
@@ -58,6 +60,7 @@ export default function VendedorPage() {
             <CapturaForm
               vendedorId={user.id}
               vendedorNome={nome}
+              loja={loja}
               onCriada={(c) => setCaptacoes((atual) => [c, ...atual])}
             />
           )}

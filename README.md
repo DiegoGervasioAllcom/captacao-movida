@@ -167,7 +167,7 @@ Você tem duas opções:
 
 O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supabase, disparado **a cada INSERT** em `captacoes`. Assim, gravamos primeiro e o disparo é responsabilidade do banco — o lead nunca se perde.
 
-1. No Supabase, vá em **Database > Webhooks** e clique em **Create a new hook** (habilite a feature se solicitado).
+1. No Supabase, vá em **Integrations > Webhooks** (a Supabase moveu essa tela de "Database" para "Integrations" — se o seu painel ainda mostrar em Database, use o caminho que aparecer) e clique em **Create a new hook** (habilite a feature se solicitado).
 2. Configure:
    - **Name:** `encaminhar_captacao`
    - **Table:** `captacoes`
@@ -186,6 +186,7 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
        "id": "…",
        "vendedor_id": "…",
        "vendedor_nome": "…",
+       "loja": "…",
        "nome_cliente": "…",
        "telefone": "…",
        "placa": "…",

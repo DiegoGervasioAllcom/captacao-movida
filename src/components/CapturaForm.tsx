@@ -13,6 +13,7 @@ import type { Captacao } from "@/lib/types";
 interface Props {
   vendedorId: string;
   vendedorNome: string | null;
+  loja: string | null;
   /** Chamado quando uma captacao e gravada com sucesso. */
   onCriada: (c: Captacao) => void;
 }
@@ -23,6 +24,7 @@ type Estado = "idle" | "enviando";
 export default function CapturaForm({
   vendedorId,
   vendedorNome,
+  loja,
   onCriada,
 }: Props) {
   const [nome, setNome] = useState("");
@@ -56,6 +58,7 @@ export default function CapturaForm({
         .insert({
           vendedor_id: vendedorId,
           vendedor_nome: vendedorNome,
+          loja,
           nome_cliente: nome.trim(),
           telefone: telefone.trim(),
           placa: normalizarPlaca(placa),

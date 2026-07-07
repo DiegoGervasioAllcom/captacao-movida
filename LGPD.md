@@ -6,6 +6,7 @@ Este documento descreve, de forma resumida, como a plataforma trata dados pessoa
 
 - **Controlador:** a empresa que opera a Captação Movida (define as finalidades do tratamento).
 - **Operadores:** Clerk (autenticação) e Supabase (banco de dados), que tratam os dados em nome do controlador. Recomenda-se manter contratos/DPAs com ambos e verificar onde os dados são hospedados (transferência internacional, art. 33).
+- **Google (Google Sheets / Apps Script)**, quando configurado como destino adicional do Database Webhook: recebe uma cópia dos dados de cada captação para fins de planilha/acompanhamento. Deve ser tratado como operador nos termos do art. 5º, VII, com as mesmas ressalvas de contrato/DPA e localização dos dados (art. 33) aplicadas ao Supabase/Clerk.
 
 ## 2. Dados pessoais tratados
 
@@ -48,7 +49,13 @@ O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimiz
 
 ## 7. Compartilhamento com terceiros
 
-Os dados são encaminhados a um **webhook externo** (sistema de destino do controlador). O controlador deve garantir que esse destino tenha base legal e medidas de segurança adequadas, e mapear esse compartilhamento no registro de operações (art. 37).
+Os dados são encaminhados a um ou mais **destinos configurados no Database Webhook** (sistemas do controlador). Cada destino deve ser listado no registro de operações (art. 37), com finalidade própria documentada. O controlador deve garantir que cada destino tenha base legal e medidas de segurança adequadas. Destinos em uso:
+
+- **Webhook externo principal:** sistema de CRM/atendimento do controlador (finalidade e medidas de segurança a documentar pelo controlador).
+- **Google Sheets (via Google Apps Script Web App):** cópia de nome, telefone, placa, vendedor e data/hora, para acompanhamento/planilha gerencial (ver `supabase/webhooks/captacoes-to-google-sheets.gs`). O script roteia cada captação para **uma de 3 planilhas** conforme a loja do vendedor (`publicMetadata.loja` no Clerk). Pontos de atenção específicos deste destino:
+  - Nenhuma das 3 planilhas tem RLS: qualquer pessoa com acesso de leitura no Google Workspace vê os dados de **todos** os vendedores daquela planilha (várias lojas por planilha), equivalente ao nível de acesso de um gestor. O compartilhamento de cada planilha deve ser restrito à mesma lista de pessoas autorizadas como "gestor" na aplicação.
+  - O Web App do Apps Script aceita POST de "qualquer pessoa" (é assim que o Supabase consegue chamá-lo); a única proteção é um segredo em query string, que deve ser tratado como credencial de produção (nunca no código, rotação se vazar — regra de ouro nº 5 do `CLAUDE.md`).
+  - Não há confirmação de entrega: falhas nesse destino (incluindo loja sem planilha mapeada) não ficam visíveis ao Supabase, o que pode gerar divergência entre a fonte da verdade (`captacoes`) e as planilhas.
 
 ## 8. Segurança da informação
 
@@ -61,6 +68,7 @@ Os dados são encaminhados a um **webhook externo** (sistema de destino do contr
 - Defina um **prazo de retenção** compatível com a finalidade (ex.: enquanto durar a negociação + período legal aplicável). Após o término da finalidade, os dados devem ser **eliminados ou anonimizados** (art. 15 e 16).
 - Implemente uma rotina periódica de expurgo (ex.: job que apaga captações além do prazo) e atenda a pedidos de exclusão do titular.
 - A eliminação definitiva de dados deve ser executada por um administrador autorizado, com registro da operação.
+- A rotina de expurgo/eliminação deve alcançar **todas as cópias** dos dados pessoais, incluindo as 3 planilhas do Google Sheets alimentadas pelo webhook secundário (seção 7) — eliminar apenas no Supabase não é suficiente para atender a um pedido de exclusão do titular (art. 18, IV).
 
 ## 10. Registro de operações e incidentes
 

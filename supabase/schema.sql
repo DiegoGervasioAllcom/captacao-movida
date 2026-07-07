@@ -18,6 +18,10 @@ create table captacoes (
   id uuid primary key default gen_random_uuid(),
   vendedor_id text not null,
   vendedor_nome text,
+  -- Loja do vendedor no momento da captacao (publicMetadata.loja no Clerk,
+  -- definida por um admin - o vendedor nao escolhe). Nula se o admin ainda
+  -- nao configurou a loja daquele vendedor.
+  loja text,
   nome_cliente text not null,
   telefone text not null,
   placa text not null,
@@ -47,3 +51,13 @@ create policy "gestor le tudo"
 on captacoes
 for select
 using ( (auth.jwt()->>'app_role') = 'gestor' );
+
+-- =========================================================================
+-- Migracao: se a tabela `captacoes` ja existir em producao (dados reais ja
+-- rodando), NAO rode o `create table` acima de novo - rode so isto:
+--
+--   alter table captacoes add column loja text;
+--
+-- Linhas antigas ficam com loja = null; nao precisa de RLS nova (a policy
+-- ja e por vendedor_id/app_role, independente dessa coluna).
+-- =========================================================================
