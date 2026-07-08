@@ -135,11 +135,17 @@ async function login(usuario, senha) {
   const page = await context.newPage();
 
   try {
-    await page.goto(URL_LOGIN, { waitUntil: "networkidle" });
+    // "networkidle" nunca e alcancado nesse site - ele carrega pixels de
+    // rastreamento (Facebook, LinkedIn Ads, LaunchDarkly) que continuam
+    // fazendo requisicoes em segundo plano indefinidamente, entao a rede
+    // nunca "para" de verdade. "domcontentloaded"/"load" bastam pro
+    // formulario de login estar pronto - confirmado com erro real de
+    // timeout em producao (ver memoria do projeto).
+    await page.goto(URL_LOGIN, { waitUntil: "domcontentloaded" });
     await page.fill("#username", usuario);
     await page.fill("#password", senha);
     await Promise.all([
-      page.waitForLoadState("networkidle").catch(() => {}),
+      page.waitForLoadState("load").catch(() => {}),
       page.click('button[type="submit"]'),
     ]);
     await page.waitForTimeout(2000);
