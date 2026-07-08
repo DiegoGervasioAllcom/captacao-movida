@@ -10,17 +10,28 @@ de sistema necessárias — nada de `apt-get`/`sudo` no host.
 
 ## Como funciona
 
-1. Faz login no ViaNuvem com Playwright (é a única forma de passar pela tela de
-   login, que tem reCAPTCHA — não dá pra fazer isso com uma chamada HTTP pura).
-2. Pega os cookies de sessão e a partir daí só usa chamadas HTTP diretas na API
-   interna do ViaNuvem (mais rápido, sem precisar do navegador para o resto).
-3. Pede o relatório de "Processos que atuo", baixa a planilha exportada.
+1. Abre o navegador (Playwright/Chromium) e faz login no ViaNuvem preenchendo
+   usuário/senha na própria tela — é a única forma de passar pelo reCAPTCHA
+   (invisível, v3), não dá pra fazer isso com uma chamada HTTP pura.
+2. Com a sessão autenticada, clica em **Exportar > Processos** na própria
+   página (`clicarExportarProcessos`) e escuta a resposta real que a SPA do
+   ViaNuvem gera para aquele clique. Isso é proposital: uma versão anterior
+   tentava replicar essa chamada por fora (extraindo cookies e usando
+   `fetch` puro) e o endpoint voltava vazio (`fullSignedURL: ""`) sem erro —
+   o servidor exige o contexto de uma navegação real da UI, não só os
+   cookies. Se a resposta vier assíncrona, continua ouvindo a mesma tela por
+   até 2 minutos (`MAX_TENTATIVAS`).
+3. Baixa a planilha do `fullSignedURL` recebido e lê as linhas (`xlsx`).
 4. Para cada processo: normaliza a placa e pula se ela **já existir em
    `captacoes`, de qualquer origem** (formulário do vendedor ou importação
    anterior) — evita duplicar lead do mesmo veículo.
 5. Insere os novos com `vendedor_id = "vianuvem"`. O Database Webhook do
    Supabase (já configurado) dispara sozinho e roteia para a planilha certa do
    Google Sheets — nada aqui mexe nisso.
+
+Rodando em produção desde 08/07/2026, de hora em hora via cron — ver
+`doc/` na raiz do projeto para o histórico completo de bugs reais
+encontrados e corrigidos durante a construção deste job.
 
 ## Instalar no servidor
 
@@ -47,11 +58,24 @@ docker compose run --rm importer
 
 ## Agendar (cron, 1x por hora)
 
+Servidores Ubuntu mínimos podem não ter `cron` nem `logrotate` instalados
+(aconteceu em produção) — instale antes de seguir:
+
 ```bash
-crontab -e
+sudo apt update
+sudo apt install -y cron logrotate
+sudo systemctl enable --now cron
 ```
 
-Adicione (ajuste o caminho completo para o real do seu servidor):
+Como o job roda com `docker compose` (precisa do socket do Docker), a
+entrada vai no **crontab do root**:
+
+```bash
+sudo crontab -e
+```
+
+Adicione (ajuste o caminho completo para o real do seu servidor — confirme
+com `pwd` dentro de `vianuvem-import`):
 
 ```
 0 * * * * cd /caminho/completo/captacao-movida/vianuvem-import && /usr/bin/docker compose run --rm importer >> /var/log/vianuvem-import.log 2>&1
@@ -66,14 +90,18 @@ bem mais curto que o seu shell interativo, então o caminho completo evita
 ```bash
 sudo tee /etc/logrotate.d/vianuvem-import > /dev/null <<'EOF'
 /var/log/vianuvem-import.log {
-  weekly
-  rotate 8
-  compress
-  missingok
-  notifempty
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
 }
 EOF
 ```
+
+`copytruncate` é essencial aqui: o cron sempre reabre o mesmo arquivo com
+`>>`, então sem isso a rotação pode cortar um log no meio de uma execução.
 
 ### Ser avisado se o cron falhar
 
@@ -87,29 +115,65 @@ tail -50 /var/log/vianuvem-import.log
 
 ## O que já foi calibrado, e o que ainda não
 
-Já testei o mapeamento de campos (`mapearLinha`) contra um relatório real
-exportado da tela — todos os campos (nome, CPF, e-mail, telefone, placa,
-loja) foram extraídos corretamente, e a correção de um bug real (coluna
-"Estabelecimento" colidindo com "ID Estabelecimento") já está aplicada. O
-que **ainda não** foi validado, porque só dá pra testar com o cron rodando
-de verdade contra o login:
+Já validado em produção, rodando de hora em hora desde 08/07/2026: login
+real via Playwright, exportação via clique na UI, mapeamento de campos
+(`mapearLinha`) contra relatórios reais (nome, CPF, e-mail, telefone, placa,
+loja todos extraídos corretamente, incluindo a correção de "Estabelecimento"
+colidindo com "ID Estabelecimento"), dedupe por placa e insert no Supabase
+com o Database Webhook roteando pra planilha certa.
 
-- **Paginação**: se "Processos que atuo" crescer muito (centenas), confirme
+O que **ainda não** foi validado:
+
+- **Paginação**: se "Processos que atuo" crescer muito (centenas), confirmar
   se o relatório exportado continua trazendo tudo de uma vez.
-- **Resposta assíncrona**: o teste real veio com `async: false` direto; se
-  algum dia a API responder de forma assíncrona, o retry simples em
-  `aguardarRelatorio` pode não bater com o contrato real.
-- **O próprio login via Playwright**: a lógica de detectar sucesso/falha
-  (checar se a URL ainda tem `/login`) nunca rodou com usuário/senha reais.
+- **Resposta assíncrona real**: os testes até agora vieram com `async: false`
+  direto; o retry (`MAX_TENTATIVAS`, 2 min) existe pro caso assíncrono mas
+  nunca foi exercitado de verdade.
+
+## Problemas reais já encontrados e corrigidos (histórico)
+
+Registrado aqui porque cada um desses custou uma rodada de debug ao vivo —
+se algo parecido acontecer de novo, comece por esta lista:
+
+- **Timeout de rede em `networkidle`**: o site carrega pixels de rastreamento
+  (Facebook, LinkedIn Ads, LaunchDarkly) que nunca param, então a rede nunca
+  fica "idle" de verdade. Corrigido usando `waitUntil: "domcontentloaded"`.
+- **Popup nativo de permissão de geolocalização**: o ViaNuvem pede
+  geolocalização como parte do login; sem ninguém pra clicar "Permitir", a
+  página travava esperando pra sempre. Corrigido concedendo a permissão
+  programaticamente no contexto do Playwright (`permissions: ["geolocation"]`
+  + coordenada fixa de São Paulo) antes de navegar.
+- **Senha com `#` truncada em silêncio**: sem aspas, o `dotenv` trata tudo
+  depois de um `#` no `.env` como comentário e corta a senha — sem erro
+  nenhum, só autenticava com uma senha incompleta. Sempre envolva valores
+  com `#`, espaços ou aspas em aspas duplas no `.env`
+  (`VIANUVEM_SENHA="minha#senha"`).
+- **`Invalid API key` do Supabase**: a chave colocada em
+  `SUPABASE_SERVICE_ROLE_KEY` era, na verdade, a chave `anon` (decodificando
+  o JWT dava `"role": "anon"`). A chave certa é a `service_role`, em Project
+  Settings > API no painel do Supabase.
+- **Exportação retornando vazia (`fullSignedURL: ""`, sem erro)**: a primeira
+  versão fazia login com Playwright, extraía os cookies, fechava o navegador
+  e replicava a chamada da API de exportação com `fetch` puro. O endpoint
+  aceitava a chamada mas devolvia vazio — o servidor exige contexto de uma
+  navegação real (clique na UI), não só os cookies. Corrigido fazendo o
+  próprio Playwright clicar em "Exportar > Processos" na página autenticada
+  e escutando a resposta real (`clicarExportarProcessos`).
+- **Login intermitente ("ainda na tela de login") em produção via cron, mas
+  funcionando manual**: não era ambiente/cron — era o site respondendo mais
+  devagar em alguns horários, estourando o prazo de 10s de espera pelo
+  redirecionamento pós-login. Aumentado para 30s.
 
 ## Quando a sessão parar de funcionar
 
-Se o login começar a falhar de forma persistente (ex.: o ViaNuvem passar a
-exigir verificação adicional por perceber login automatizado toda hora), o
-script para e loga o erro — ele **não** insiste tentando de novo sem parar.
-Nesse caso, a alternativa é trocar o login automático por um cookie de sessão
-extraído manualmente de tempos em tempos (ver histórico da conversa/memória
-do projeto para o desenho dessa alternativa).
+Se o login começar a falhar de forma **persistente** (não intermitente —
+ver item acima sobre timeout), pode ser o ViaNuvem passando a exigir
+verificação adicional por perceber login automatizado toda hora. O script
+para e loga o erro (com screenshot em `debug/falha-login-*.png`); ele
+**não** insiste tentando de novo sem parar. Nesse caso, a alternativa é
+trocar o login automático por um cookie de sessão extraído manualmente de
+tempos em tempos, ou (melhor, ver seção abaixo) buscar acesso oficial de
+API com o ViaNuvem.
 
 ## LGPD
 

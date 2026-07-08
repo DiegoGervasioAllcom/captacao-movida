@@ -33,7 +33,7 @@ Plataforma onde **vendedores** fazem login e cadastram clientes através de um f
 | **vendedor** | Cadastra clientes e vê **apenas as próprias** captações |
 | **gestor** | Vê **todas** as captações, com busca e exportação CSV |
 
-O papel vem do Clerk: guardado em `publicMetadata.role` e incluído no *session token* como o claim `role`. As policies de RLS do Supabase leem `auth.jwt()->>'sub'` (id do usuário no Clerk) e `auth.jwt()->>'role'` (papel).
+O papel vem do Clerk: guardado em `publicMetadata.role` e incluído no *session token* como o claim **`app_role`** (não `role` — esse claim já pertence ao Supabase e vale sempre `authenticated`; ver nota abaixo). As policies de RLS do Supabase leem `auth.jwt()->>'sub'` (id do usuário no Clerk) e `auth.jwt()->>'app_role'` (papel).
 
 **Fluxo de um lead:**
 
@@ -129,37 +129,17 @@ As rotas de login/cadastro deste projeto são `/sign-in` e `/sign-up` (já defin
 
    ```json
    {
-     "role": "{{user.public_metadata.role}}"
+     "app_role": "{{user.public_metadata.role}}"
    }
    ```
 
-   Assim, `auth.jwt()->>'role'` no Supabase devolve `vendedor` ou `gestor`.
+   Assim, `auth.jwt()->>'app_role'` no Supabase devolve `vendedor` ou `gestor`.
 
 ### ⚠️ Nota importante sobre o claim `role`
 
-A integração nativa do Supabase **espera** que o token traga o claim `role` com o valor **`authenticated`** (é assim que o PostgREST decide o papel do Postgres). Se você sobrescrever `role` com `vendedor`/`gestor` no session token, as requisições autenticadas podem ser **rejeitadas** pelo Supabase.
+A integração nativa do Supabase **espera** que o token traga o claim `role` com o valor **`authenticated`** (é assim que o PostgREST decide o papel do Postgres) — esse claim é gerenciado pelo próprio Supabase e **nunca** deve ser sobrescrito com `vendedor`/`gestor`.
 
-Você tem duas opções:
-
-- **Opção A (recomendada, mais robusta):** mantenha o `role` reservado para o Supabase (`authenticated`) e use **outro claim** para o papel da aplicação, por exemplo `user_role`:
-
-  ```json
-  { "user_role": "{{user.public_metadata.role}}" }
-  ```
-
-  E ajuste a policy do gestor em `supabase/schema.sql` para ler `auth.jwt()->>'user_role'`:
-
-  ```sql
-  create policy "gestor le tudo"
-  on captacoes for select
-  using ( (auth.jwt()->>'user_role') = 'gestor' );
-  ```
-
-  Se optar por isso, ajuste também as leituras no código (`sessionClaims.role` → `sessionClaims.user_role` em `middleware.ts`, `page.tsx` e `gestor/page.tsx`).
-
-- **Opção B (segue o enunciado à risca):** usar o claim `role` conforme especificado. Funciona em cenários onde o Supabase aceita o valor, mas valide o comportamento no seu projeto antes de ir para produção, pois pode conflitar com a exigência do `role: authenticated`.
-
-> O código e o SQL deste repositório vêm na **Opção B** (claim `role`), exatamente como solicitado. Migrar para a Opção A é uma troca de nome de claim em 4 lugares (documentados acima).
+Por isso o papel da aplicação vive em um claim **separado**, `app_role` (não `role`), lido em [`src/lib/roles.ts`](./src/lib/roles.ts) via `roleFromClaims(sessionClaims)`. Usuário sem `app_role` definido é tratado como `vendedor` (menor privilégio). Essa é a única forma usada neste projeto — ver regra de ouro nº 1 do `CLAUDE.md`.
 
 ---
 
@@ -190,6 +170,8 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
        "nome_cliente": "…",
        "telefone": "…",
        "placa": "…",
+       "cpf": null,
+       "email": null,
        "created_at": "…"
      },
      "schema": "public",
@@ -197,7 +179,13 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
    }
    ```
 
+   `cpf`/`email` só vêm preenchidos para captações com `vendedor_id = "vianuvem"` (ver [`vianuvem-import/`](./vianuvem-import/)); no formulário do vendedor esses dois campos sempre chegam nulos.
+
 > Dica: para esconder a URL/segredo do webhook e adicionar lógica (retries, transformação do payload), você pode apontar o hook para uma **Supabase Edge Function** que lê a URL real de uma *secret* (`supabase secrets set WEBHOOK_URL=…`) e repassa o POST. Isso mantém a URL totalmente fora do código e do banco.
+
+### Destino em uso: Google Sheets via Apps Script
+
+Além do webhook principal configurado acima, este projeto também usa (em paralelo, como um segundo Database Webhook na mesma tabela) um **Google Apps Script publicado como Web App** para replicar cada captação em uma de 3 planilhas, roteada pela loja do vendedor (`publicMetadata.loja`). Script completo em [`supabase/webhooks/captacoes-to-google-sheets.gs`](./supabase/webhooks/captacoes-to-google-sheets.gs), com o passo a passo de implantação no cabeçalho do próprio arquivo.
 
 ---
 
@@ -249,19 +237,29 @@ captacao-movida/
 │  │  ├─ Brand.tsx
 │  │  ├─ AppHeader.tsx
 │  │  ├─ CapturaForm.tsx             # validação, máscaras, INSERT no Supabase
-│  │  └─ GestorClient.tsx            # busca + exportação CSV
+│  │  ├─ GestorClient.tsx            # busca + exportação CSV
+│  │  ├─ login/                      # tela de login (LoginScreen, SignInForm)
+│  │  └─ vendedor/                   # tela "Nova Indicação" componentizada
 │  ├─ lib/
 │  │  ├─ supabase.ts                 # cliente browser c/ token do Clerk
 │  │  ├─ supabase-server.ts          # cliente server c/ token do Clerk
 │  │  ├─ validation.ts               # telefone (10/11), placa (Mercosul/antiga)
 │  │  ├─ format.ts                   # formatação de data/hora
-│  │  ├─ roles.ts                    # utilitários de papel
+│  │  ├─ roles.ts                    # utilitários de papel (claim app_role)
+│  │  ├─ loja.ts                     # le publicMetadata.loja (case-insensitive)
 │  │  └─ types.ts                    # tipos compartilhados
 │  └─ middleware.ts                  # auth + autorização por papel
 ├─ supabase/
-│  └─ schema.sql                     # tabela + índice + policies RLS
+│  ├─ schema.sql                     # tabela + índices + policies RLS
+│  └─ webhooks/
+│     └─ captacoes-to-google-sheets.gs  # Apps Script: destino Google Sheets
+├─ vianuvem-import/                  # job standalone (Docker próprio) que importa
+│                                     # leads do ViaNuvem/Unico Auto de hora em
+│                                     # hora — ver vianuvem-import/README.md
+├─ doc/                              # documentação técnica detalhada (HTML)
 ├─ .env.example                      # todas as variáveis (sem valores reais)
 ├─ README.md
+├─ DOCKER.md                         # deploy do app principal via Docker
 └─ LGPD.md                           # adequação à LGPD
 ```
 
@@ -269,4 +267,4 @@ captacao-movida/
 
 ## LGPD
 
-O tratamento de dados pessoais dos clientes (nome, telefone, placa) está descrito em [`LGPD.md`](./LGPD.md): base legal, finalidade, controle de acesso e retenção.
+O tratamento de dados pessoais dos clientes (nome, telefone, placa e, para captações importadas via `vianuvem-import/`, também CPF e e-mail) está descrito em [`LGPD.md`](./LGPD.md): base legal, finalidade, controle de acesso e retenção.

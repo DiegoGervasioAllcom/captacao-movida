@@ -43,3 +43,21 @@ export function limparNomeLoja(estabelecimento) {
     .map((palavra) => palavra.charAt(0).toUpperCase() + palavra.slice(1))
     .join(" ");
 }
+
+/**
+ * Limpa o "Aberto por" do ViaNuvem, que vem no formato de usuario/login
+ * (ex.: "movida.guni.lacerda", "natalia.ferreira") para um nome legivel
+ * (ex.: "Guni Lacerda", "Natalia Ferreira"), consistente com o nome que
+ * aparece pro gestor e na planilha do Google Sheets.
+ */
+export function limparNomeVendedor(abertoPor) {
+  const semPrefixo = String(abertoPor || "")
+    .replace(/^movida\.?\s*/i, "")
+    .trim();
+  if (!semPrefixo) return null;
+  return semPrefixo
+    .split(/[._\s]+/)
+    .filter(Boolean)
+    .map((parte) => parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase())
+    .join(" ");
+}

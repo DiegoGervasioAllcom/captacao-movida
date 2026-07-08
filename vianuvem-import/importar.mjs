@@ -15,7 +15,10 @@
 //   3. Baixa o relatorio (planilha) do link assinado retornado.
 //   4. Pra cada linha: normaliza a placa, pula se ja existe em `captacoes`
 //      (de QUALQUER origem - formulario ou importacao anterior), senao
-//      insere com vendedor_id/vendedor_nome = "vianuvem".
+//      insere com vendedor_id = "vianuvem" (fixo - por isso o registro so
+//      fica visivel ao gestor via RLS) mas vendedor_nome = a coluna fixa
+//      "Aberto por" do relatorio (o vendedor real que abriu o processo no
+//      ViaNuvem), com fallback pro texto antigo se essa coluna vier vazia.
 //
 // O insert na tabela dispara sozinho o Database Webhook ja existente, que
 // roteia pra planilha certa do Google Sheets - nada aqui mexe nisso.
@@ -46,7 +49,12 @@ import "dotenv/config";
 import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
-import { normalizarPlaca, limparNomeLoja, mascararPlaca } from "./lib/normalizar.mjs";
+import {
+  normalizarPlaca,
+  limparNomeLoja,
+  limparNomeVendedor,
+  mascararPlaca,
+} from "./lib/normalizar.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import WebSocket from "ws";
@@ -78,6 +86,9 @@ export const CAMPOS_DINAMICOS = {
 };
 export const COLUNAS_FIXAS = {
   estabelecimento: ["estabelecimento"],
+  // Nome de quem abriu o processo no ViaNuvem - o vendedor real. Usado como
+  // vendedor_nome no lugar do texto fixo "ViaNuvem (importacao automatica)".
+  abertoPor: ["aberto por"],
 };
 const PRIMEIRA_COLUNA_DINAMICA = 12;
 
@@ -288,9 +299,11 @@ async function baixarLinhas(signedUrl) {
   return { headers, linhas };
 }
 
-export function mapearLinha(linhaArray, colEstabelecimento) {
+export function mapearLinha(linhaArray, colEstabelecimento, colAbertoPor) {
   const campos = extrairCamposDinamicos(linhaArray);
   const col = (campo) => acharCampoDinamico(campos, CAMPOS_DINAMICOS[campo]);
+  const abertoPor =
+    colAbertoPor === -1 ? null : limparNomeVendedor(linhaArray[colAbertoPor]);
   return {
     numeroProposta: col("numeroProposta"),
     nomeCliente: col("nomeCliente"),
@@ -299,6 +312,7 @@ export function mapearLinha(linhaArray, colEstabelecimento) {
     telefone: col("celular"),
     placa: normalizarPlaca(col("placa") || ""),
     loja: colEstabelecimento === -1 ? null : limparNomeLoja(linhaArray[colEstabelecimento]),
+    vendedorNome: abertoPor,
   };
 }
 
@@ -330,12 +344,13 @@ async function importar() {
     return;
   }
   const colEstabelecimento = acharColunaFixa(headers, COLUNAS_FIXAS.estabelecimento);
+  const colAbertoPor = acharColunaFixa(headers, COLUNAS_FIXAS.abertoPor);
 
   let importados = 0;
   let ignorados = 0;
 
   for (const linhaBruta of linhas) {
-    const lead = mapearLinha(linhaBruta, colEstabelecimento);
+    const lead = mapearLinha(linhaBruta, colEstabelecimento, colAbertoPor);
 
     if (!lead.placa || !lead.nomeCliente || !lead.telefone) {
       console.warn(
@@ -369,7 +384,7 @@ async function importar() {
 
     const { error: erroInsercao } = await supabase.from("captacoes").insert({
       vendedor_id: "vianuvem",
-      vendedor_nome: "ViaNuvem (importacao automatica)",
+      vendedor_nome: lead.vendedorNome || "ViaNuvem (importacao automatica)",
       loja: lead.loja,
       nome_cliente: lead.nomeCliente,
       telefone: lead.telefone,

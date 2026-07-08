@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentação Técnica — Captação Movida</title>
+<style>
+  :root {
+    --surface: #f9f9ff;
+    --surface-card: #ffffff;
+    --surface-container: #f3f3f9;
+    --surface-container-high: #ededf3;
+    --on-surface: #1a1c20;
+    --on-surface-variant: #534433;
+    --outline: #867461;
+    --outline-variant: #d8c3ad;
+
+    --primary: #845400;
+    --primary-container: #f49e00;
+    --on-primary-container: #603b00;
+
+    --secondary: #006d2f;
+    --secondary-container: #eafff1;
+
+    --tertiary: #00658d;
+    --tertiary-container: #eaf7ff;
+
+    --error: #ba1a1a;
+    --error-container: #fff1f0;
+
+    --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+    --radius: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    padding: 64px 0 40px;
+    border-bottom: 1px solid var(--outline-variant);
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary-container) 35%, white);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 12px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .hero p.lede {
+    font-size: 1.1rem;
+    color: var(--on-surface-variant);
+    max-width: 62ch;
+    margin: 0 0 24px;
+  }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 0.85rem;
+    color: var(--on-surface-variant);
+  }
+  .meta-row span {
+    background: var(--surface-container);
+    border: 1px solid var(--outline-variant);
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+
+  /* ---------- TOC ---------- */
+  nav.toc {
+    background: var(--surface-card);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 56px;
+  }
+  nav.toc h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--on-surface-variant);
+    margin: 0 0 14px;
+  }
+  nav.toc ol {
+    columns: 2;
+    column-gap: 32px;
+    margin: 0;
+    padding-left: 1.2em;
+  }
+  nav.toc li { break-inside: avoid; margin-bottom: 8px; }
+  nav.toc a { color: var(--on-surface); text-decoration: none; font-size: 0.95rem; }
+  nav.toc a:hover { color: var(--primary); text-decoration: underline; }
+
+  /* ---------- Sections ---------- */
+  section {
+    margin-bottom: 64px;
+    scroll-margin-top: 24px;
+  }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    color: var(--primary);
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.15rem;
+    margin: 32px 0 12px;
+    color: var(--on-surface);
+  }
+  h4 {
+    font-size: 1rem;
+    margin: 20px 0 8px;
+  }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 1.4em; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--on-surface); }
+
+  a { color: var(--tertiary); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--surface-container-high);
+    padding: 0.1em 0.4em;
+    border-radius: 0.3em;
+  }
+  pre {
+    background: #1a1c20;
+    color: #e8e8ed;
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.55;
+    margin: 0 0 18px;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 20px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--outline-variant);
+    vertical-align: top;
+  }
+  th {
+    color: var(--on-surface-variant);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-md); }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin: 0 0 18px;
+    border: 1px solid;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout-title {
+    font-weight: 700;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .callout.info {
+    background: var(--tertiary-container);
+    border-color: color-mix(in srgb, var(--tertiary) 30%, white);
+  }
+  .callout.info .callout-title { color: var(--tertiary); }
+  .callout.ok {
+    background: var(--secondary-container);
+    border-color: color-mix(in srgb, var(--secondary) 30%, white);
+  }
+  .callout.ok .callout-title { color: var(--secondary); }
+  .callout.warn {
+    background: #fff8e8;
+    border-color: color-mix(in srgb, var(--primary-container) 60%, white);
+  }
+  .callout.warn .callout-title { color: var(--primary); }
+  .callout.bug {
+    background: var(--error-container);
+    border-color: color-mix(in srgb, var(--error) 25%, white);
+  }
+  .callout.bug .callout-title { color: var(--error); }
+
+  /* ---------- Diagram ---------- */
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0;
+    margin: 24px 0;
+  }
+  .flow-box {
+    background: var(--surface-card);
+    border: 1.5px solid var(--outline-variant);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 0.88rem;
+    text-align: center;
+    flex: 1 1 160px;
+  }
+  .flow-box strong { display: block; font-size: 0.95rem; margin-bottom: 2px; }
+  .flow-box small { color: var(--on-surface-variant); }
+  .flow-arrow {
+    flex: 0 0 auto;
+    padding: 0 10px;
+    color: var(--outline);
+    font-size: 1.2rem;
+  }
+  @media (max-width: 640px) {
+    .flow { flex-direction: column; align-items: stretch; }
+    .flow-arrow { transform: rotate(90deg); padding: 4px 0; align-self: center; }
+  }
+
+  /* ---------- Timeline (bug history) ---------- */
+  .timeline {
+    border-left: 2px solid var(--outline-variant);
+    margin: 0 0 8px;
+    padding-left: 0;
+    list-style: none;
+  }
+  .timeline-item {
+    position: relative;
+    padding: 0 0 28px 26px;
+  }
+  .timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -6.5px;
+    top: 4px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--error);
+    border: 2px solid var(--surface);
+  }
+  .timeline-item.fixed::before { background: var(--secondary); }
+  .timeline-item h4 {
+    margin: 0 0 6px;
+    font-size: 1rem;
+  }
+  .timeline-item .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--error);
+    background: var(--error-container);
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-bottom: 8px;
+  }
+  .timeline-item p { margin: 0; color: var(--on-surface-variant); font-size: 0.94rem; }
+  .timeline-item p strong { color: var(--on-surface); }
+
+  /* ---------- Status badges / audit table ---------- */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .status.corrigido { background: var(--secondary-container); color: var(--secondary); }
+  .status.ok { background: var(--secondary-container); color: var(--secondary); }
+  .status.novo { background: var(--tertiary-container); color: var(--tertiary); }
+
+  footer {
+    margin-top: 80px;
+    padding-top: 24px;
+    border-top: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    font-size: 0.85rem;
+  }
+
+  .file-ref {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    color: var(--primary);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <span class="eyebrow">Registro técnico interno</span>
+    <h1>Captação Movida — documentação da rodada de trabalho: login, Google Sheets e importação automática ViaNuvem</h1>
+    <p class="lede">
+      Este documento descreve, em detalhe, tudo que foi construído, corrigido e implantado
+      nesta fase do projeto — da tela de login até o job de importação automática que hoje
+      roda em produção de hora em hora. Também audita a documentação já existente no
+      repositório e registra o que estava desatualizado.
+    </p>
+    <div class="meta-row">
+      <span>Projeto: Captação Movida</span>
+      <span>Stack: Next.js 15 + Clerk + Supabase + Playwright</span>
+      <span>Servidor de produção: supper-ubu01</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h2>Sumário</h2>
+    <ol>
+      <li><a href="#visao-geral">Visão geral do sistema</a></li>
+      <li><a href="#login">Tela de login</a></li>
+      <li><a href="#vendedor">Área do vendedor</a></li>
+      <li><a href="#sheets">Integração com Google Sheets</a></li>
+      <li><a href="#infra">Infraestrutura (Nginx)</a></li>
+      <li><a href="#vianuvem">Importação automática ViaNuvem/Unico Auto</a></li>
+      <li><a href="#deploy">Deploy em produção (Docker, cron, logrotate)</a></li>
+      <li><a href="#bugs">Histórico de bugs reais e correções</a></li>
+      <li><a href="#lgpd">LGPD</a></li>
+      <li><a href="#auditoria">Auditoria da documentação existente</a></li>
+      <li><a href="#pendencias">Pendências e próximos passos</a></li>
+      <li><a href="#referencias">Referência rápida de arquivos</a></li>
+    </ol>
+  </nav>
+
+  <section id="visao-geral">
+    <div class="section-head"><span class="section-num">01</span><h2>Visão geral do sistema</h2></div>
+    <p>
+      A Captação Movida é uma plataforma de captação de leads: <strong>vendedores</strong> cadastram
+      clientes através de um formulário; <strong>gestores</strong> veem todas as captações, com busca
+      e exportação em CSV. O papel de cada usuário vem do Clerk, no claim <code>app_role</code>
+      do session token (nunca no claim <code>role</code>, que pertence ao Supabase e vale sempre
+      <code>authenticated</code>).
+    </p>
+    <p>O fluxo de um lead sempre segue a mesma regra, para nunca perder um cadastro:</p>
+    <div class="flow">
+      <div class="flow-box"><strong>Formulário</strong><small>vendedor preenche</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>INSERT em captacoes</strong><small>Supabase, fonte da verdade</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>Database Webhook</strong><small>dispara sozinho no INSERT</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>Destinos externos</strong><small>CRM + Google Sheets</small></div>
+    </div>
+    <p>
+      Nesta rodada de trabalho, um <strong>segundo produtor</strong> de linhas na tabela <code>captacoes</code>
+      foi adicionado além do formulário do vendedor: o job <code>vianuvem-import/</code>, que importa leads
+      de um sistema de terceiros de hora em hora (seção 6). Ele reaproveita exatamente o mesmo pipeline de
+      saída (Database Webhook → Google Sheets) sem que nada nesse pipeline precisasse mudar.
+    </p>
+  </section>
+
+  <section id="login">
+    <div class="section-head"><span class="section-num">02</span><h2>Tela de login</h2></div>
+    <p>A tela de login (<span class="file-ref">src/components/login/</span>) foi ajustada para ficar fiel ao Figma:</p>
+    <ul>
+      <li>
+        <strong>Borda neon do cartão:</strong> substituída a versão recriada em CSS por uma imagem real
+        fornecida pelo design (<span class="file-ref">public/login/card-border.png</span>), limpa de artefatos
+        de transparência (alpha "despremultiplicado" sobre fundo preto) e, na segunda rodada, refeita a partir
+        de um arquivo de origem mais limpo enviado pelo usuário.
+      </li>
+      <li>
+        <strong>Campos do formulário menores que no Figma:</strong> causa raiz era o <code>padding</code> do
+        <code>.card</code> em unidades <code>%</code> — como o elemento é <code>position: absolute</code>, a
+        porcentagem resolve contra o <em>containing block</em> (o palco inteiro), não contra o próprio elemento.
+        Corrigido trocando para unidades <code>cqw</code> (container query width), que resolvem contra o
+        container real do cartão.
+      </li>
+      <li>
+        <strong>Verificação do mobile:</strong> conferido que a correção acima não quebrou a versão mobile
+        (que já esconde a borda/elementos decorativos via media query). Um problema pré-existente e não
+        relacionado foi encontrado — a classe <code>.tlArt</code> tem um espaçamento estranho no mobile — mas
+        não foi corrigido porque está fora do escopo desta mudança e não foi confirmado com o usuário.
+      </li>
+    </ul>
+    <div class="callout info">
+      <span class="callout-title">Pendência aberta</span>
+      <p>O ajuste do <code>.tlArt</code> no mobile segue pendente de confirmação — ver seção 10.</p>
+    </div>
+  </section>
+
+  <section id="vendedor">
+    <div class="section-head"><span class="section-num">03</span><h2>Área do vendedor</h2></div>
+    <p>
+      A tela logada do vendedor ("Nova Indicação") foi componentizada a partir de um segundo arquivo do Figma,
+      isolada deliberadamente do <span class="file-ref">AppHeader</span>/estilo do painel do gestor — ou seja,
+      o header e os componentes compartilhados com a área do gestor não foram tocados.
+    </p>
+    <ul>
+      <li>Novos arquivos: <span class="file-ref">src/components/vendedor/indicacao.module.css</span> e
+        <span class="file-ref">IndicacaoHeader.tsx</span>, isolados do CSS/JS compartilhado.</li>
+      <li>Logo real aplicada no header do vendedor (<span class="file-ref">public/vendedor/logo-supper-certo.png</span>),
+        extraída de um anexo enviado pelo usuário e re-escalada (upscale 4× com alpha pré-multiplicado, técnica
+        Lanczos) para evitar bordas escuras — substitui uma versão recriada em CSS/SVG.</li>
+      <li>Confirmado visualmente que o painel do gestor não foi afetado por nenhuma dessas mudanças.</li>
+    </ul>
+  </section>
+
+  <section id="sheets">
+    <div class="section-head"><span class="section-num">04</span><h2>Integração com Google Sheets</h2></div>
+    <p>
+      Cada captação passou a ser replicada em uma de <strong>3 planilhas reais</strong> do Google Sheets
+      (uma por gestor/loja), usando um <strong>Google Apps Script publicado como Web App</strong> como destino
+      de um segundo Database Webhook na mesma tabela <code>captacoes</code> — o Supabase dispara para os dois
+      destinos (CRM principal + Apps Script) de forma independente.
+    </p>
+    <h3>Roteamento por loja</h3>
+    <p>
+      Para decidir em qual planilha uma captação cai, o campo <code>publicMetadata.loja</code> (definido por um
+      admin no Clerk, o vendedor não escolhe) é propagado até o payload do webhook e usado pelo script para
+      resolver a planilha certa:
+    </p>
+    <div class="flow">
+      <div class="flow-box"><strong>publicMetadata.loja</strong><small>Clerk, por vendedor</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>captacoes.loja</strong><small>coluna no Supabase</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>LOJA_PARA_PLANILHA</strong><small>mapa normalizado no Apps Script</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>1 de 3 planilhas</strong><small>everton / wesley / william</small></div>
+    </div>
+    <p>
+      Arquivo: <span class="file-ref">supabase/webhooks/captacoes-to-google-sheets.gs</span>. Estrutura principal:
+    </p>
+    <ul>
+      <li><code>PLANILHAS</code> — IDs das 3 planilhas reais.</li>
+      <li><code>LOJA_PARA_PLANILHA</code> — mapa normalizado (maiúsculas/acentos não importam), incluindo aliases
+        reais descobertos durante os testes (ex.: variações do nome "Campinas Shopping Dom Pedro").</li>
+      <li><code>doPost(e)</code> — valida um segredo compartilhado, resolve a planilha e adiciona uma linha.</li>
+      <li><code>registrarErro</code> — loga falhas (ex.: loja sem planilha mapeada) numa aba própria, <strong>nunca</strong>
+        logando dado pessoal, só o <code>id</code> da captação.</li>
+    </ul>
+    <p>Colunas em cada planilha: <code>DATA | VENDEDOR | LOJA | NOME | CELULAR | E-MAIL | CPF | PLACA | STATUS</code>.
+       <code>E-MAIL</code> e <code>CPF</code> só vêm preenchidos para captações de origem <code>vianuvem</code>
+       (seção 6); do formulário do vendedor, ficam em branco.</p>
+
+    <h3>Segredo do webhook (configuração manual necessária)</h3>
+    <p>
+      A autenticação entre Supabase e o Apps Script é um segredo simples passado por <strong>query string</strong>
+      na própria URL do webhook — não um header, e não OAuth. Isso já causou um incidente real (erro "segredo
+      inválido ou ausente" por esquecimento na hora de configurar):
+    </p>
+    <ol>
+      <li>No Apps Script: <strong>⚙️ Configurações do projeto → Propriedades do script</strong> → propriedade
+        <code>WEBHOOK_SECRET</code> com um valor aleatório (ex.: <code>openssl rand -hex 16</code>).</li>
+      <li>No Supabase: a URL do webhook precisa terminar em <code>?secret=&lt;mesmo valor&gt;</code>.</li>
+      <li>Os dois lados (Apps Script e URL do Supabase) precisam ficar sempre sincronizados manualmente — não
+        há rotação automática.</li>
+    </ol>
+
+    <h3>Implantação (resumo)</h3>
+    <p>O passo a passo completo está no cabeçalho do próprio arquivo <code>.gs</code>. Resumo:</p>
+    <ol>
+      <li>Projeto Apps Script <strong>standalone</strong> (não vinculado a nenhuma planilha específica, porque
+        escreve em 3 arquivos diferentes).</li>
+      <li>Rodar <code>setupSheet()</code> uma vez, para criar a aba de log de erro.</li>
+      <li>Configurar <code>WEBHOOK_SECRET</code> (acima).</li>
+      <li>Implantar como Web App ("Executar como: Eu", "Quem pode acessar: Qualquer pessoa").</li>
+      <li>Criar o Database Webhook no Supabase apontando pra URL gerada + <code>?secret=...</code>.</li>
+    </ol>
+  </section>
+
+  <section id="infra">
+    <div class="section-head"><span class="section-num">05</span><h2>Infraestrutura (Nginx)</h2></div>
+    <p>Dois ajustes de infraestrutura foram feitos e verificados via <code>curl</code> de múltiplos pontos:</p>
+    <ul>
+      <li><strong>Bug de produção:</strong> <code>www.supperseguros.com.br</code> devolvia 404 enquanto o domínio
+        sem <code>www</code> funcionava — causa era a configuração de <code>server_name</code> do Nginx não
+        cobrindo os dois hosts corretamente. Corrigido e verificado.</li>
+      <li><strong>Segundo domínio:</strong> configurado <code>supperseguro.com.br</code> (sem "s") como redirect
+        para o domínio principal.</li>
+    </ul>
+  </section>
+
+  <section id="vianuvem">
+    <div class="section-head"><span class="section-num">06</span><h2>Importação automática ViaNuvem/Unico Auto</h2></div>
+    <p>
+      Esta é a peça mais nova e mais complexa desta rodada: um job standalone,
+      <span class="file-ref">vianuvem-import/</span>, que faz login automatizado no sistema de terceiros
+      <strong>ViaNuvem/Unico Auto</strong> (usado pelas lojas para gestão de processos de financiamento/consórcio
+      de veículos), exporta os <em>"Processos que atuo"</em> e insere os novos como leads em <code>captacoes</code>,
+      de hora em hora.
+    </p>
+
+    <h3>Decisões de projeto (e por quê)</h3>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Decisão</th><th>Motivo</th></tr>
+      <tr>
+        <td>Dedupe por <strong>placa</strong>, em <strong>toda a tabela</strong>, qualquer origem</td>
+        <td>Evita duplicar lead do mesmo veículo, mesmo que já tenha vindo do formulário do vendedor.
+          Trade-off aceito conscientemente: se o mesmo carro for revendido meses depois, o import vai
+          pular esse veículo achando que já existe.</td>
+      </tr>
+      <tr>
+        <td><code>vendedor_id = "vianuvem"</code></td>
+        <td>Identifica a origem do lead sem corresponder a nenhum usuário real do Clerk. Consequência
+          das policies de RLS: esses registros só aparecem para o <strong>gestor</strong>, nunca para um
+          vendedor específico — comportamento esperado.</td>
+      </tr>
+      <tr>
+        <td>Login via <strong>Playwright</strong> (não API oficial)</td>
+        <td>Não existe (ainda) acesso de API documentado para o ViaNuvem. Login/senha simples, sem desafio
+          de reCAPTCHA visível — apenas reCAPTCHA v3 (invisível, baseado em score). Nunca foi construída
+          nenhuma automação para resolver/burlar um desafio de CAPTCHA explícito — isso foi uma restrição
+          clara do usuário desde o início do projeto.</td>
+      </tr>
+      <tr>
+        <td>Deploy via <strong>Docker</strong>, não Node.js no host</td>
+        <td>O servidor de produção não tinha Node.js instalado. A imagem oficial do Playwright já traz
+          Chromium e todas as dependências de sistema — evita <code>apt-get</code>/<code>sudo</code> no host.</td>
+      </tr>
+      <tr>
+        <td>CPF e e-mail agora fazem parte do schema</td>
+        <td>Uso real confirmado: preencher as colunas CPF/E-mail que as 3 planilhas gerenciais já tinham,
+          mas que o formulário do vendedor nunca coletou.</td>
+      </tr>
+    </table>
+    </div>
+
+    <h3>Como o script funciona, passo a passo</h3>
+    <div class="flow">
+      <div class="flow-box"><strong>1. Login</strong><small>Playwright preenche usuário/senha</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>2. Clica Exportar → Processos</strong><small>na página real, não via fetch externo</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>3. Baixa a planilha</strong><small>signedURL da resposta capturada</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>4. Mapeia campos</strong><small>nome, CPF, e-mail, telefone, placa, loja</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>5. Dedupe + insert</strong><small>por placa, vendedor_id = vianuvem</small></div>
+    </div>
+    <p>
+      O passo 2 é a parte mais importante para entender: a primeira versão do script fazia login, extraía os
+      cookies de sessão, fechava o navegador e chamava a API de exportação diretamente via <code>fetch</code>.
+      Essa chamada era aceita pelo servidor mas devolvia um resultado vazio
+      (<code>{"fullSignedURL":"","async":false}</code>), sem nenhum erro — o endpoint depende de algum contexto
+      de sessão que só existe quando um clique real acontece na página, não apenas dos cookies. A correção foi
+      deixar o próprio Playwright clicar em "Exportar" → "Processos" na página autenticada e escutar a resposta
+      real que a SPA gera (função <code>clicarExportarProcessos</code>). Detalhes completos na seção 8.
+    </p>
+
+    <h4>Arquivos principais</h4>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Arquivo</th><th>Papel</th></tr>
+      <tr><td><span class="file-ref">importar.mjs</span></td><td>Script principal: login, exportação, download, mapeamento, dedupe, insert.</td></tr>
+      <tr><td><span class="file-ref">lib/normalizar.mjs</span></td><td><code>normalizarPlaca</code>, <code>limparNomeLoja</code>, <code>mascararPlaca</code> (para logs).</td></tr>
+      <tr><td><span class="file-ref">Dockerfile</span></td><td><code>FROM mcr.microsoft.com/playwright:v1.47.0-jammy</code> — imagem já traz Chromium + libs de sistema.</td></tr>
+      <tr><td><span class="file-ref">docker-compose.yml</span></td><td>Serviço único <code>importer</code>, sem restart policy — padrão "job pontual" (<code>run --rm</code>, não <code>up -d</code>).</td></tr>
+      <tr><td><span class="file-ref">.env.example</span></td><td>Documenta as variáveis, incluindo o aviso sobre <code>#</code> na senha (seção 8).</td></tr>
+    </table>
+    </div>
+
+    <h3>Mapeamento de colunas dinâmico</h3>
+    <p>
+      O relatório exportado do ViaNuvem tem colunas fixas (0–11, incluindo o estabelecimento/loja) seguidas de
+      pares repetidos <em>(rótulo, valor)</em> a partir da coluna 12 — e o texto do rótulo muda conforme o "Tipo
+      de Processo" de cada linha. Por isso o mapeamento não usa índice fixo de coluna para os campos dinâmicos
+      (nome, CPF, e-mail, telefone, placa): ele varre cada linha procurando pelo texto do rótulo
+      (<code>extrairCamposDinamicos</code> + <code>acharCampoDinamico</code>), com fallback de substring só
+      depois de tentar igualdade exata — isso corrigiu um bug real onde a coluna <em>"Estabelecimento"</em>
+      colidia com <em>"ID Estabelecimento"</em>.
+    </p>
+  </section>
+
+  <section id="deploy">
+    <div class="section-head"><span class="section-num">07</span><h2>Deploy em produção</h2></div>
+    <p>Sequência real executada no servidor <code>supper-ubu01</code>:</p>
+
+    <h3>1. Build da imagem</h3>
+    <pre><code>cd captacao-movida/vianuvem-import
+cp .env.example .env
+chmod 600 .env
+# preencher .env com usuario/senha do ViaNuvem e as chaves do Supabase
+docker compose build</code></pre>
+
+    <h3>2. Teste manual</h3>
+    <pre><code>docker compose run --rm importer</code></pre>
+    <p>Confirma no log a linha final <code>Concluido: X importado(s), Y ja existente(s)/invalido(s).</code> e
+       confere no banco/planilha que os dados batem.</p>
+
+    <h3>3. Instalar cron e logrotate</h3>
+    <div class="callout warn">
+      <span class="callout-title">Gotcha real</span>
+      <p>O servidor Ubuntu era mínimo o suficiente para <strong>não ter <code>cron</code> nem <code>logrotate</code>
+        instalados</strong> — tiveram que ser instalados manualmente antes de configurar o agendamento.</p>
+    </div>
+    <pre><code>sudo apt update
+sudo apt install -y cron logrotate
+sudo systemctl enable --now cron</code></pre>
+
+    <h3>4. Crontab (do root, por causa do socket do Docker)</h3>
+    <pre><code>sudo crontab -e
+
+# adicionar:
+0 * * * * cd /home/supperadmin/captacao-movida/vianuvem-import && /usr/bin/docker compose run --rm importer >> /var/log/vianuvem-import.log 2>&1</code></pre>
+    <p>Caminho do binário do Docker sempre absoluto (<code>which docker</code>) — o <code>PATH</code> do cron é
+       muito mais curto que o de um shell interativo.</p>
+
+    <h3>5. Rotação de log</h3>
+    <pre><code>sudo tee /etc/logrotate.d/vianuvem-import > /dev/null &lt;&lt;'EOF'
+/var/log/vianuvem-import.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF</code></pre>
+    <p><code>copytruncate</code> é necessário porque o cron sempre reabre o mesmo arquivo com <code>>></code> —
+       sem isso a rotação pode cortar um log no meio de uma execução.</p>
+
+    <h3>Atualizar uma versão nova do job</h3>
+    <pre><code>git pull
+docker compose build   # obrigatório - o Dockerfile copia o código pra imagem, não é volume
+docker compose run --rm importer   # checagem manual antes de deixar o cron rodar sozinho</code></pre>
+  </section>
+
+  <section id="bugs">
+    <div class="section-head"><span class="section-num">08</span><h2>Histórico de bugs reais e correções</h2></div>
+    <p>Ordem cronológica de tudo que quebrou de verdade durante a construção deste job, e como foi resolvido:</p>
+
+    <ul class="timeline">
+      <li class="timeline-item fixed">
+        <span class="tag">rede</span>
+        <h4>Timeout em <code>networkidle</code></h4>
+        <p><strong>Sintoma:</strong> <code>page.goto</code> estourava 30s de timeout.
+           <strong>Causa:</strong> o site carrega pixels de rastreamento (Facebook, LinkedIn Ads, LaunchDarkly)
+           que nunca param de fazer requisição — a rede nunca fica "idle" de verdade.
+           <strong>Correção:</strong> trocado <code>waitUntil: "networkidle"</code> por <code>"domcontentloaded"</code>.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">infra</span>
+        <h4><code>npm: command not found</code> no servidor</h4>
+        <p><strong>Causa:</strong> Node.js não estava instalado no host.
+           <strong>Decisão:</strong> ao invés de instalar Node diretamente (sugestão inicial), o usuário propôs
+           usar Docker — adotado por ser mais limpo e por já vir com todas as dependências do Playwright.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">infra</span>
+        <h4>Disco cheio (<code>ENOSPC</code>) durante <code>docker compose build</code></h4>
+        <p><strong>Diagnóstico:</strong> <code>df -h</code> / <code>docker system df</code> mostraram ~978MB de
+           cache de build reaproveitável num disco de 9.8GB.
+           <strong>Correção:</strong> <code>sudo docker builder prune -f</code> (liberou para 3.2GB livres) —
+           evitado de propósito qualquer comando de limpeza mais agressivo sem antes mostrar o que seria removido,
+           por ser servidor de produção.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">runtime</span>
+        <h4><code>Node.js detected but native WebSocket not found</code></h4>
+        <p><strong>Causa:</strong> o <code>RealtimeClient</code> do <code>@supabase/supabase-js</code> exige
+           <code>WebSocket</code> nativo (Node 22+), mas a imagem usa uma versão mais antiga.
+           <strong>Correção:</strong> dependência <code>ws</code> adicionada e passada explicitamente via
+           <code>createClient(url, key, { realtime: { transport: WebSocket } })</code>.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">login</span>
+        <h4>Popup nativo de permissão de geolocalização travando a página</h4>
+        <p><strong>Como foi descoberto:</strong> o usuário rodou o script localmente com o navegador visível
+           (<code>VIANUVEM_HEADLESS=false</code>) e viu ao vivo a caixa de permissão aparecer sem nada pra
+           clicar "Permitir", travando a página até fechar sozinha.
+           <strong>Correção:</strong> conceder a permissão programaticamente no contexto do Playwright antes de
+           navegar — <code>permissions: ["geolocation"]</code> + coordenada fixa de São Paulo.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">config</span>
+        <h4>Senha com <code>#</code> truncada em silêncio pelo <code>.env</code></h4>
+        <p><strong>Como foi descoberto:</strong> o próprio usuário percebeu que sua senha continha um
+           <code>#</code> e associou ao comportamento do <code>.env</code>.
+           <strong>Causa:</strong> sem aspas, o <code>dotenv</code> trata tudo depois de um <code>#</code> como
+           comentário — a senha era cortada sem nenhum erro visível, apenas autenticando com um valor incompleto.
+           <strong>Correção:</strong> documentado com destaque no <code>.env.example</code> e no cabeçalho do
+           script — sempre envolver em aspas duplas valores com <code>#</code>, espaços ou aspas.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">supabase</span>
+        <h4><code>Invalid API key</code> ao checar/inserir no Supabase</h4>
+        <p><strong>Diagnóstico:</strong> decodificado o JWT da <code>SUPABASE_SERVICE_ROLE_KEY</code> (só o
+           payload, nunca a assinatura) e o campo <code>role</code> dentro dele acusava <code>"anon"</code>, não
+           <code>"service_role"</code>.
+           <strong>Correção:</strong> chave certa copiada de Project Settings → API no painel do Supabase.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">export</span>
+        <h4>Exportação retornando vazia sem erro (<code>fullSignedURL: ""</code>)</h4>
+        <p><strong>Causa:</strong> a versão original replicava a chamada da API de exportação via
+           <code>fetch</code> externo, usando os cookies extraídos após o login. O endpoint aceitava a chamada
+           (sem erro HTTP) mas devolvia um resultado vazio — indício de que o servidor exige algum estado que só
+           existe numa navegação real da UI.
+           <strong>Correção:</strong> reescrito para o próprio Playwright clicar em "Exportar" → "Processos" na
+           página autenticada, escutando a resposta real via <code>page.waitForResponse</code>
+           (<code>clicarExportarProcessos</code>). Validado com sucesso após a mudança — <code>fullSignedURL</code>
+           veio populado e o pipeline completo (download → parse → dedupe → insert) funcionou de ponta a ponta.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">produção</span>
+        <h4>Login intermitente via cron ("ainda na tela de login"), mas funcionando manual</h4>
+        <p><strong>Hipóteses descartadas com evidência:</strong> geolocalização (já resolvida programaticamente,
+           idêntica em ambos os casos) e horário/fuso (o usuário confirmou que não era isso, e um dos disparos
+           do cron às 2h da manhã funcionou normalmente, mostrando que não é sistemático).
+           <strong>Causa real:</strong> o site responde mais devagar em alguns momentos, e o prazo de 10s para
+           esperar o redirecionamento pós-login era curto demais — um login válido era erroneamente contado como
+           falha.
+           <strong>Correção:</strong> prazo aumentado de 10s para 30s. Sem custo para o caso comum (o script
+           segue de qualquer forma assim que a URL mudar).</p>
+      </li>
+    </ul>
+
+    <div class="callout ok">
+      <span class="callout-title">Estado atual</span>
+      <p>Pipeline completo validado em produção: login → clique em Exportar/Processos → download → parse →
+         dedupe por placa → insert no Supabase → Database Webhook → planilha certa do Google Sheets, com CPF e
+         e-mail preenchidos. Rodando via cron de hora em hora desde 08/07/2026.</p>
+    </div>
+  </section>
+
+  <section id="lgpd">
+    <div class="section-head"><span class="section-num">09</span><h2>LGPD</h2></div>
+    <p>
+      A importação automática do ViaNuvem trata dados de titulares que <strong>nunca interagiram diretamente</strong>
+      com a Captação Movida — os dados já existiam em outro sistema, no contexto de um processo de financiamento
+      de veículo. Isso muda a base legal aplicável em relação ao formulário do vendedor:
+    </p>
+    <ul>
+      <li><strong>Base legal:</strong> legítimo interesse (art. 7º, IX), fundamentado no interesse comercial de
+        dar continuidade a processos já iniciados nas próprias lojas — não consentimento direto com a Captação
+        Movida.</li>
+      <li><strong>Risco identificado e aceito conscientemente:</strong> o acesso à origem depende de login
+        automatizado com credenciais de um usuário real do ViaNuvem, sem integração de API oficial nem acordo
+        formal para esse tipo de extração. Recomendação de médio prazo: buscar API oficial (há indício de uma
+        categoria de processo "TESTE API - USO EXCLUSIVO" na conta).</li>
+      <li><strong><code>vendedor_id = "vianuvem"</code>:</strong> por consequência das policies de RLS, esses
+        registros só ficam visíveis ao gestor — nunca a um vendedor específico.</li>
+      <li><strong>Logs:</strong> nenhum processo deve logar nome, telefone, CPF ou e-mail em texto puro. Placa,
+        quando necessária para diagnóstico, é mascarada (só os últimos 3 caracteres visíveis) via
+        <code>mascararPlaca</code>.</li>
+      <li><strong>Retenção do CPF:</strong> deve ter prazo igual ou mais curto que os demais campos — hoje seu
+        único uso é preencher a planilha gerencial; a placa (não o CPF) é a chave de deduplicação.</li>
+    </ul>
+    <p>Documento completo e atualizado: <a href="../LGPD.md">LGPD.md</a> (seção 4.1 trata especificamente da
+       origem ViaNuvem).</p>
+  </section>
+
+  <section id="auditoria">
+    <div class="section-head"><span class="section-num">10</span><h2>Auditoria da documentação existente</h2></div>
+    <p>Antes de escrever este documento, toda a documentação já existente no repositório foi revisada em busca
+       de desatualizações. Resultado:</p>
+
+    <div class="table-wrap">
+    <table>
+      <tr><th>Arquivo</th><th>Status</th><th>O que foi encontrado / corrigido</th></tr>
+      <tr>
+        <td><span class="file-ref">README.md</span> (raiz)</td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>
+          Documentava o claim <code>role</code> ("Opção B") como a escolha do projeto, mas o código
+          (<span class="file-ref">src/lib/roles.ts</span>, <span class="file-ref">supabase/schema.sql</span>)
+          já usa <code>app_role</code> — uma contradição real entre documentação e código. Corrigido em todas
+          as menções. Também não mencionava <code>vianuvem-import/</code>, os campos <code>loja</code>/<code>cpf</code>/<code>email</code>,
+          nem o destino Google Sheets — adicionados.
+        </td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">vianuvem-import/README.md</span></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>
+          Descrevia a arquitetura antiga (cookies extraídos + chamada HTTP crua), já abandonada por retornar
+          resultado vazio. Config de <code>logrotate</code> documentada (<code>weekly</code>/<code>rotate 8</code>,
+          sem <code>copytruncate</code>) divergia da realmente instalada em produção. A seção de calibração dizia
+          que o login "nunca rodou com usuário/senha reais" — hoje roda em produção de hora em hora. Reescrito
+          com a arquitetura atual, a config real de logrotate, e uma seção nova com o histórico de bugs reais
+          (espelhando a seção 8 deste documento).
+        </td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">LGPD.md</span></td>
+        <td><span class="status ok">Já atualizado</span></td>
+        <td>Já cobria corretamente CPF/e-mail, a origem ViaNuvem (seção 4.1) e o destino Google Sheets
+          (seção 7). Nenhuma alteração necessária.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">DOCKER.md</span></td>
+        <td><span class="status ok">Já atualizado</span></td>
+        <td>Documenta corretamente o deploy do app principal (multi-stage, <code>standalone</code>). É um
+          Docker separado do usado por <code>vianuvem-import/</code> (que é um job pontual, não um serviço de
+          longa duração) — distinção que já fica clara pelos dois READMEs serem independentes.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">CLAUDE.md</span></td>
+        <td><span class="status ok">Já atualizado</span></td>
+        <td>Regra de ouro nº 1 (<code>app_role</code>) e a seção de Estrutura (menciona
+          <code>vianuvem-import/</code>) já estavam corretas e serviram de referência para corrigir o
+          <code>README.md</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">supabase/schema.sql</span></td>
+        <td><span class="status ok">Já atualizado</span></td>
+        <td>Colunas <code>loja</code>, <code>cpf</code>, <code>email</code> e o índice em <code>placa</code> já
+          documentados no bloco de migração para produção.</td>
+      </tr>
+    </table>
+    </div>
+  </section>
+
+  <section id="pendencias">
+    <div class="section-head"><span class="section-num">11</span><h2>Pendências e próximos passos</h2></div>
+    <ul>
+      <li><strong>Paginação do relatório ViaNuvem:</strong> ainda não testado com "Processos que atuo" além de
+        algumas dezenas de linhas — se crescer para centenas, confirmar que o export continua trazendo tudo de
+        uma vez.</li>
+      <li><strong>Resposta assíncrona do endpoint de exportação:</strong> todos os testes reais vieram com
+        <code>async: false</code> direto; a lógica de retry (<code>MAX_TENTATIVAS</code>, até 2 minutos) existe
+        mas nunca foi exercitada de verdade.</li>
+      <li><strong>API oficial do ViaNuvem/Unico Auto:</strong> vale abrir um chamado com o suporte perguntando
+        por acesso oficial — a conta já tem uma categoria de processo "TESTE API - USO EXCLUSIVO", indício de
+        que pode existir uma integração documentada, eliminando a dependência de login automatizado a médio prazo.</li>
+      <li><strong>CSS <code>.tlArt</code> no mobile:</strong> bug pré-existente encontrado durante a verificação
+        do login mobile, não corrigido por estar fora do escopo e sem confirmação do usuário.</li>
+      <li><strong>Alerta de falha do cron:</strong> <code>MAILTO</code> no crontab foi documentado como opção,
+        mas depende de um MTA (<code>sendmail</code>/<code>postfix</code>) configurado no servidor — ainda não
+        confirmado se existe.</li>
+    </ul>
+  </section>
+
+  <section id="referencias">
+    <div class="section-head"><span class="section-num">12</span><h2>Referência rápida de arquivos</h2></div>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Arquivo</th><th>O que é</th></tr>
+      <tr><td><span class="file-ref">src/lib/roles.ts</span></td><td>Leitura do papel via claim <code>app_role</code>.</td></tr>
+      <tr><td><span class="file-ref">src/lib/loja.ts</span></td><td>Leitura de <code>publicMetadata.loja</code> (case-insensitive).</td></tr>
+      <tr><td><span class="file-ref">supabase/schema.sql</span></td><td>Tabela <code>captacoes</code>, índices, policies RLS.</td></tr>
+      <tr><td><span class="file-ref">supabase/webhooks/captacoes-to-google-sheets.gs</span></td><td>Apps Script: destino Google Sheets, roteamento por loja.</td></tr>
+      <tr><td><span class="file-ref">vianuvem-import/importar.mjs</span></td><td>Script principal do job de importação.</td></tr>
+      <tr><td><span class="file-ref">vianuvem-import/lib/normalizar.mjs</span></td><td>Normalização de placa/loja e máscara de log.</td></tr>
+      <tr><td><span class="file-ref">vianuvem-import/README.md</span></td><td>Guia operacional do job (instalação, cron, troubleshooting).</td></tr>
+      <tr><td><span class="file-ref">LGPD.md</span></td><td>Adequação à LGPD, incluindo a origem ViaNuvem.</td></tr>
+      <tr><td><span class="file-ref">DOCKER.md</span></td><td>Deploy do app principal via Docker.</td></tr>
+      <tr><td><span class="file-ref">CLAUDE.md</span></td><td>Regras de ouro do projeto (fonte da verdade para convenções).</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <footer>
+    Documento gerado como registro técnico interno do projeto Captação Movida. Mantenha-o atualizado sempre que
+    a arquitetura do <code>vianuvem-import/</code> ou da integração com Google Sheets mudar de forma relevante.
+  </footer>
+
+</div>
+</body>
+</html>
