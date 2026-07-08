@@ -5,11 +5,14 @@
 // Fluxo:
 //   1. Login via Playwright (unico jeito de passar pelo reCAPTCHA da tela
 //      de login - ver conversa/memoria do projeto: e um form comum com
-//      reCAPTCHA v3 invisivel, sem desafio pra "resolver").
-//   2. Extrai os cookies de sessao e derruba o navegador - o resto e so
-//      chamada HTTP direta na API interna (mais leve e rapido).
-//   3. Chama o endpoint de exportacao ("Processos que atuo") e baixa o
-//      relatorio (planilha) do link assinado.
+//      reCAPTCHA v3 invisivel, sem desafio pra "resolver"). Tambem concede
+//      permissao de geolocalizacao de proposito - o site pede isso como
+//      parte do login e, sem responder, a pagina trava esperando pra sempre.
+//   2. Clica em "Exportar > Processos" NA TELA (nao replica a chamada por
+//      fora com os cookies extraidos - tentamos isso e o endpoint voltava
+//      vazio sem erro, parece depender de estado que so existe navegando
+//      normalmente) e captura a resposta real que o proprio site recebe.
+//   3. Baixa o relatorio (planilha) do link assinado retornado.
 //   4. Pra cada linha: normaliza a placa, pula se ja existe em `captacoes`
 //      (de QUALQUER origem - formulario ou importacao anterior), senao
 //      insere com vendedor_id/vendedor_nome = "vianuvem".
@@ -24,18 +27,19 @@
 // Processo). Nao ha fixture de teste com esse arquivo no repositorio de
 // proposito - e dado pessoal real, nunca commitar um export de verdade.
 //
-// LIMITACOES AINDA NAO CONFIRMADAS (o export de teste tinha so 33 linhas,
-// um unico lote - nao deu pra validar isso sem rodar de verdade por mais
-// tempo):
+// JA CONFIRMADO com login e senha reais (2026-07): autenticacao completa,
+// clique em Exportar > Processos, e resposta tanto sincrona quanto
+// assincrona (async:true) do endpoint de relatorio.
+//
+// ATENCAO - pegadinha real que ja aconteceu: se a senha tiver "#", ela
+// PRECISA estar entre aspas no .env (ver .env.example) - sem aspas, o
+// dotenv trata tudo depois do "#" como comentario e corta a senha em
+// silencio, sem erro nenhum (o login so falha de forma misteriosa).
+//
+// LIMITACAO AINDA NAO CONFIRMADA:
 //   - Paginacao: assumido que o relatorio exportado ja traz todas as linhas
 //     de uma vez (nao paginado). Se "Processos que atuo" crescer muito,
 //     verifique se falta paginar.
-//   - Resposta assincrona (`async: true`): implementado um retry simples;
-//     o export de teste veio com `async: false` direto, entao o contrato
-//     real de um pedido assincrono nunca foi observado - ajustar
-//     `aguardarRelatorio` se necessario.
-//   - Fluxo de login: a logica de deteccao de sucesso/falha (checar se a
-//     URL ainda contem "/login") nao foi testada com usuario/senha reais.
 // =========================================================================
 
 import "dotenv/config";
@@ -43,19 +47,14 @@ import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { normalizarPlaca, limparNomeLoja, mascararPlaca } from "./lib/normalizar.mjs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import WebSocket from "ws";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 
-// "Processos que atuo" - confirmado observando a chamada real da tela ao
-// clicar em Exportar (ver memoria do projeto). Se o ViaNuvem mudar os ids
-// dos filtros, isso precisa ser reconferido do mesmo jeito (interceptando
-// window.fetch no console do navegador logado).
-const QUICK_FILTER_ID_PROCESSOS_QUE_ATUO = 2;
-
 const URL_LOGIN = "https://app.vianuvem.com.br/auto/login";
-const URL_EXPORT = "https://workspace.vianuvem.com.br/bff/api/v1/search/report/workflows";
 
 // O relatorio exportado tem duas partes bem diferentes (confirmado
 // inspecionando um export real - ver memoria do projeto):
@@ -129,41 +128,74 @@ function acharCampoDinamico(campos, candidatos) {
   return null;
 }
 
-const PASTA_DEBUG = "/app/debug";
+// Relativo ao proprio arquivo (funciona tanto rodando local quanto dentro
+// do container Docker, onde WORKDIR e /app - antes estava fixo em "/app/
+// debug", o que so existia dentro do container).
+const PASTA_DEBUG = join(dirname(fileURLToPath(import.meta.url)), "debug");
 
-// Quando o login falha, tira um print e pega o texto visivel da tela (nunca
-// a senha, que so existe no campo de input, nao no texto renderizado) para
+// Quando algo falha, tira um print e pega o texto visivel da tela (nunca a
+// senha, que so existe no campo de input, nao no texto renderizado) para
 // dar pra diagnosticar de longe sem precisar adivinhar. Salva em
 // PASTA_DEBUG, que o docker-compose monta como volume pra sobreviver ao
-// --rm do container.
-async function capturarDiagnosticoDeFalha(page) {
+// --rm do container. `rotulo` distingue o print de falha de login do de
+// falha de exportacao.
+async function capturarDiagnosticoDeFalha(page, rotulo) {
   try {
     const { mkdirSync } = await import("node:fs");
     mkdirSync(PASTA_DEBUG, { recursive: true });
     const carimbo = new Date().toISOString().replace(/[:.]/g, "-");
-    const caminhoPrint = `${PASTA_DEBUG}/login-falhou-${carimbo}.png`;
+    const caminhoPrint = `${PASTA_DEBUG}/${rotulo}-${carimbo}.png`;
     await page.screenshot({ path: caminhoPrint, fullPage: true });
 
     const textoTela = await page.evaluate(() => document.body.innerText).catch(() => "");
     const textoResumido = textoTela.replace(/\s+/g, " ").trim().slice(0, 400);
 
-    // So o TAMANHO do valor digitado, nunca o valor em si - serve pra saber
-    // se os campos ficaram preenchidos ou se a pagina resetou/nunca preencheu.
-    const tamUsuario = await page.inputValue("#username").then((v) => v.length).catch(() => -1);
-    const tamSenha = await page.inputValue("#password").then((v) => v.length).catch(() => -1);
-
-    return (
-      `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}". ` +
-      `Campo usuario tinha ${tamUsuario} caractere(s), campo senha tinha ${tamSenha} caractere(s).`
-    );
+    return `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}".`;
   } catch (err) {
     return `(nao foi possivel capturar diagnostico: ${err})`;
   }
 }
 
-async function login(usuario, senha) {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ userAgent: USER_AGENT });
+// Clica em "Exportar" > "Processos" na tela de verdade e captura a resposta
+// real que o proprio site recebe (em vez de replicar a chamada por fora com
+// os cookies extraidos - tentamos isso primeiro e voltou sempre com
+// fullSignedURL vazio, sem erro, mesmo com sessao valida; o endpoint parece
+// depender de algum estado que so existe navegando/clicando na tela
+// normalmente, entao deixamos o proprio Playwright fazer o clique real).
+async function clicarExportarProcessos(page) {
+  const respostaPromise = page.waitForResponse(
+    (r) => r.url().includes("search/report/workflows") && r.request().method() === "POST",
+    { timeout: 30000 }
+  );
+  await page.getByRole("button", { name: "Exportar" }).click();
+  await page.getByRole("button", { name: "Processos" }).click();
+  const resposta = await respostaPromise;
+  return resposta.json();
+}
+
+// fullSignedURL e um link de acesso temporario (mesmo cuidado de qualquer
+// segredo do projeto) - nunca loga o valor, so se esta presente ou nao.
+function resumoRespostaRelatorio(resp) {
+  return JSON.stringify({ ...resp, fullSignedURL: resp.fullSignedURL ? "[presente]" : resp.fullSignedURL });
+}
+
+async function autenticarEBaixarSignedUrl(usuario, senha) {
+  // VIANUVEM_HEADLESS=false roda com o navegador visivel (util pra depurar
+  // localmente, ex.: descobrir se um desafio do reCAPTCHA aparece). Em
+  // producao (cron/servidor sem tela) deixe sem essa variavel = headless.
+  const modoHeadless = process.env.VIANUVEM_HEADLESS !== "false";
+  const browser = await chromium.launch({ headless: modoHeadless, slowMo: modoHeadless ? 0 : 150 });
+  // O ViaNuvem pede permissao de geolocalizacao como parte do login (visto
+  // ao vivo: um popup nativo do navegador aparece e, sem ninguem pra clicar
+  // "Permitir", a pagina fica esperando pra sempre e acaba travando/
+  // resetando pro login - bate com a falha identica em headless e headed).
+  // Concede de proposito, com uma coordenada de Sao Paulo (sede da
+  // operacao) em vez de deixar pendente ou em (0,0).
+  const context = await browser.newContext({
+    userAgent: USER_AGENT,
+    permissions: ["geolocation"],
+    geolocation: { latitude: -23.5505, longitude: -46.6333 },
+  });
   const page = await context.newPage();
 
   try {
@@ -187,7 +219,7 @@ async function login(usuario, senha) {
 
     const url = page.url();
     if (url.includes("/login")) {
-      const diagnostico = await capturarDiagnosticoDeFalha(page);
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-login");
       throw new Error(
         "Login nao concluido (ainda na tela de login - possivel senha errada, " +
           "verificacao adicional, ou o reCAPTCHA pontuou a sessao como suspeita). " +
@@ -195,55 +227,45 @@ async function login(usuario, senha) {
       );
     }
 
-    const cookies = await context.cookies();
-    return cookies;
+    console.log("[vianuvem-import] Login OK. Clicando em Exportar > Processos...");
+
+    let dadosResposta = await clicarExportarProcessos(page);
+    let tentativas = 0;
+    const MAX_TENTATIVAS = 24; // 24 x 5s = 2 minutos
+    console.log(`[vianuvem-import] Resposta inicial: ${resumoRespostaRelatorio(dadosResposta)}`);
+
+    // Se vier assincrono, continua ouvindo a MESMA tela por novas respostas
+    // desse endpoint (a propria SPA deve pollar sozinha se for o caso) em
+    // vez de nos re-perguntarmos por fora - assim reaproveitamos qualquer
+    // polling que o site ja faca, sem reinventar o contrato.
+    while (dadosResposta.async && !dadosResposta.fullSignedURL && tentativas < MAX_TENTATIVAS) {
+      const proxima = await page
+        .waitForResponse(
+          (r) => r.url().includes("search/report/workflows") && r.request().method() === "POST",
+          { timeout: 5000 }
+        )
+        .then((r) => r.json())
+        .catch(() => null);
+      tentativas += 1;
+      if (proxima) {
+        dadosResposta = proxima;
+        console.log(
+          `[vianuvem-import] Tentativa ${tentativas}/${MAX_TENTATIVAS}: ${resumoRespostaRelatorio(dadosResposta)}`
+        );
+      }
+    }
+
+    if (!dadosResposta.fullSignedURL) {
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-export");
+      throw new Error(
+        `Relatorio nao ficou pronto a tempo. Ultima resposta: ${resumoRespostaRelatorio(dadosResposta)}. ${diagnostico}`
+      );
+    }
+
+    return dadosResposta.fullSignedURL;
   } finally {
     await browser.close();
   }
-}
-
-function cookieHeader(cookies) {
-  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-}
-
-async function pedirRelatorio(cookie) {
-  const resposta = await fetch(URL_EXPORT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": USER_AGENT,
-      Cookie: cookie,
-    },
-    body: JSON.stringify({
-      searchMoment: Date.now(),
-      page: 1,
-      searchType: "workflows",
-      quickFilterId: QUICK_FILTER_ID_PROCESSOS_QUE_ATUO,
-    }),
-  });
-
-  if (!resposta.ok) {
-    throw new Error(`Falha ao pedir relatorio: HTTP ${resposta.status}`);
-  }
-  return resposta.json();
-}
-
-// Espera o relatorio ficar pronto se a API responder de forma assincrona.
-// Contrato exato nao confirmado - ajustar se necessario (ver LIMITACOES).
-async function aguardarRelatorio(cookie, primeiraResposta) {
-  let atual = primeiraResposta;
-  let tentativas = 0;
-  while (atual.async && !atual.fullSignedURL && tentativas < 10) {
-    await new Promise((r) => setTimeout(r, 3000));
-    atual = await pedirRelatorio(cookie);
-    tentativas += 1;
-  }
-  if (!atual.fullSignedURL) {
-    throw new Error(
-      "Relatorio nao ficou pronto a tempo (resposta async sem fullSignedURL)."
-    );
-  }
-  return atual.fullSignedURL;
 }
 
 // Retorna { headers, linhas } como arrays crus (nao objetos por header),
@@ -295,13 +317,8 @@ async function importar() {
     realtime: { transport: WebSocket },
   });
 
-  console.log("[vianuvem-import] Autenticando...");
-  const cookies = await login(VIANUVEM_USUARIO, VIANUVEM_SENHA);
-  const cookie = cookieHeader(cookies);
-
-  console.log("[vianuvem-import] Pedindo relatorio de processos...");
-  const primeiraResposta = await pedirRelatorio(cookie);
-  const signedUrl = await aguardarRelatorio(cookie, primeiraResposta);
+  console.log("[vianuvem-import] Autenticando e exportando processos...");
+  const signedUrl = await autenticarEBaixarSignedUrl(VIANUVEM_USUARIO, VIANUVEM_SENHA);
 
   console.log("[vianuvem-import] Baixando e lendo planilha...");
   const { headers, linhas } = await baixarLinhas(signedUrl);
