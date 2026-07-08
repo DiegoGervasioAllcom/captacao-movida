@@ -11,3 +11,7 @@ services:
     image: vianuvem-import:latest
     env_file:
       - .env
+    volumes:
+      # Print de diagnostico quando o login falha (login-falhou-*.png) - sem
+      # isso, o arquivo seria perdido junto com o container (--rm).
+      - ./debug:/app/debug

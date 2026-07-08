@@ -129,6 +129,30 @@ function acharCampoDinamico(campos, candidatos) {
   return null;
 }
 
+const PASTA_DEBUG = "/app/debug";
+
+// Quando o login falha, tira um print e pega o texto visivel da tela (nunca
+// a senha, que so existe no campo de input, nao no texto renderizado) para
+// dar pra diagnosticar de longe sem precisar adivinhar. Salva em
+// PASTA_DEBUG, que o docker-compose monta como volume pra sobreviver ao
+// --rm do container.
+async function capturarDiagnosticoDeFalha(page) {
+  try {
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(PASTA_DEBUG, { recursive: true });
+    const carimbo = new Date().toISOString().replace(/[:.]/g, "-");
+    const caminhoPrint = `${PASTA_DEBUG}/login-falhou-${carimbo}.png`;
+    await page.screenshot({ path: caminhoPrint, fullPage: true });
+
+    const textoTela = await page.evaluate(() => document.body.innerText).catch(() => "");
+    const textoResumido = textoTela.replace(/\s+/g, " ").trim().slice(0, 400);
+
+    return `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}"`;
+  } catch (err) {
+    return `(nao foi possivel capturar diagnostico: ${err})`;
+  }
+}
+
 async function login(usuario, senha) {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ userAgent: USER_AGENT });
@@ -152,9 +176,11 @@ async function login(usuario, senha) {
 
     const url = page.url();
     if (url.includes("/login")) {
+      const diagnostico = await capturarDiagnosticoDeFalha(page);
       throw new Error(
         "Login nao concluido (ainda na tela de login - possivel senha errada, " +
-          "verificacao adicional, ou o reCAPTCHA pontuou a sessao como suspeita)."
+          "verificacao adicional, ou o reCAPTCHA pontuou a sessao como suspeita). " +
+          diagnostico
       );
     }
 
