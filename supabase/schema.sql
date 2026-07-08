@@ -25,11 +25,20 @@ create table captacoes (
   nome_cliente text not null,
   telefone text not null,
   placa text not null,
+  -- CPF e e-mail: vem da importacao automatica do ViaNuvem/Unico Auto
+  -- (vendedor_id = 'vianuvem'), nao do formulario de captacao. Nulos para
+  -- captacoes feitas por um vendedor.
+  cpf text,
+  email text,
   created_at timestamptz not null default now()
 );
 
 -- Indice para acelerar a busca "minhas captacoes" por vendedor.
 create index on captacoes (vendedor_id);
+
+-- Indice para o job de importacao do ViaNuvem checar rapido se uma placa
+-- ja foi capturada antes (por qualquer origem), evitando lead duplicado.
+create index on captacoes (placa);
 
 -- Habilita Row Level Security (RLS). Sem policy, ninguem acessa.
 alter table captacoes enable row level security;
@@ -57,7 +66,10 @@ using ( (auth.jwt()->>'app_role') = 'gestor' );
 -- rodando), NAO rode o `create table` acima de novo - rode so isto:
 --
 --   alter table captacoes add column loja text;
+--   alter table captacoes add column cpf text;
+--   alter table captacoes add column email text;
+--   create index on captacoes (placa);
 --
--- Linhas antigas ficam com loja = null; nao precisa de RLS nova (a policy
--- ja e por vendedor_id/app_role, independente dessa coluna).
+-- Linhas antigas ficam com loja/cpf/email = null; nao precisa de RLS nova
+-- (as policies ja sao por vendedor_id/app_role, independente dessas colunas).
 -- =========================================================================

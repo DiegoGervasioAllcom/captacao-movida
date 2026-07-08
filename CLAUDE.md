@@ -21,7 +21,7 @@ npm run lint       # ESLint
 6. **Server vs Client:** painel do gestor é SSR; área do vendedor e formulários são `"use client"`. Não troque sem motivo.
 7. **Estilo:** use tokens CSS e classes `cm-*` de `src/app/globals.css`. Sem bibliotecas de UI nem cores hardcoded. Mobile-first + acessibilidade (labels, `aria-*`, `role="alert"`/`"status"`).
 8. **Validação:** reaproveite `src/lib/validation.ts` (telefone 10/11 dígitos; placa Mercosul `ABC1D23` ou antiga `ABC1234`; máscaras). Não duplique regex.
-9. **LGPD:** dados pessoais = nome, telefone, placa. Minimização, acesso por RLS, sem logar dado pessoal. Ver `LGPD.md`.
+9. **LGPD:** dados pessoais = nome, telefone, placa (formulário do vendedor) e também CPF/e-mail (só na importação automática do ViaNuvem, `vianuvem-import/`). Minimização, acesso por RLS, sem logar dado pessoal (placa mascarada em log quando necessário). Ver `LGPD.md`.
 
 ## Estrutura
 - `src/app/` — `layout.tsx` (ClerkProvider), `page.tsx` (redirect por papel), `vendedor/` (client), `gestor/` (server), `sign-in`/`sign-up`.
@@ -29,6 +29,7 @@ npm run lint       # ESLint
 - `src/lib/` — `supabase.ts`, `supabase-server.ts`, `roles.ts`, `validation.ts`, `format.ts`, `types.ts` (mantenha `Captacao`/`NovaCaptacao` em sincronia com o schema).
 - `src/middleware.ts` — auth + autorização por papel.
 - `supabase/schema.sql` — tabela `captacoes` + índice + policies RLS.
+- `vianuvem-import/` — job standalone (fora do app, próprio `package.json`) que importa leads do ViaNuvem/Unico Auto de hora em hora via cron. Ver `vianuvem-import/README.md`.
 
 ## Agentes e skills deste projeto (`.claude/`)
 Roteie a tarefa ao especialista, que aciona a skill correspondente:

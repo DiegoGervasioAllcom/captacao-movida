@@ -17,6 +17,9 @@ export interface Captacao {
   nome_cliente: string;
   telefone: string;
   placa: string;
+  /** Vem da importacao automatica do ViaNuvem (vendedor_id = "vianuvem"); nulo para captacoes de vendedor. */
+  cpf: string | null;
+  email: string | null;
   created_at: string;
 }
 
@@ -28,4 +31,6 @@ export interface NovaCaptacao {
   nome_cliente: string;
   telefone: string;
   placa: string;
+  cpf?: string | null;
+  email?: string | null;
 }

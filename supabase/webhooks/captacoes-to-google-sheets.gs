@@ -11,13 +11,14 @@
 // planilhas) - precisa ser assim porque escreve em 3 arquivos diferentes.
 // Se voce ja tem um projeto criado em https://script.google.com, use ele.
 //
-// A planilha ja tem colunas que o sistema NAO coleta hoje (E-MAIL, CPF) e
-// uma coluna STATUS preenchida manualmente pelo time. Essas 3 colunas
-// ficam em branco nas linhas geradas por este script - decisao tomada
-// para nao aumentar o escopo de dado pessoal coletado (CPF/e-mail nao
-// fazem parte do formulario de captacao, ver CLAUDE.md regra 9). LOJA e
-// preenchida automaticamente com `record.loja` (o mesmo valor, vindo do
-// publicMetadata do Clerk, que decide o roteamento - ver LOJA_PARA_PLANILHA).
+// E-MAIL e CPF (`record.email`/`record.cpf`) sao preenchidos quando a
+// captacao vem da importacao automatica do ViaNuvem (vendedor_id =
+// "vianuvem", ver vianuvem-import/) - o formulario do vendedor nao coleta
+// esses 2 campos, entao ficam em branco nesse caso. A coluna STATUS
+// continua em branco sempre (preenchimento manual do time). LOJA e
+// preenchida automaticamente com `record.loja` (mesmo valor que decide o
+// roteamento - ver LOJA_PARA_PLANILHA). Ver LGPD.md secao 4.1 para a base
+// legal do fluxo ViaNuvem, diferente do fluxo de indicacao do vendedor.
 //
 // Colunas da aba "Página1" em cada planilha (linha 2 = cabecalho, dados a
 // partir da linha 3):
@@ -86,14 +87,21 @@ const PLANILHA_ERROS = PLANILHAS.william;
 
 // Loja (normalizada) -> chave em PLANILHAS. Mantenha em sincronia com o
 // valor exato digitado em publicMetadata.loja no Clerk para cada vendedor.
+// Alguns apelidos abaixo (marcados) vieram do "Estabelecimento" real do
+// relatorio do ViaNuvem (vianuvem-import/), que grafa a mesma loja de jeitos
+// diferentes do que os admins digitam no Clerk - confirmado inspecionando
+// um export de verdade (ver memoria do projeto).
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Americana': 'everton',
   'Campinas Amoreiras': 'everton',
   'Campinas Itapura': 'everton',
   'Campinas Orosimbo': 'everton',
   'Campinas Shop Dom Pedro': 'everton',
+  'Campinas - Shopping Dom Pedro': 'everton', // apelido ViaNuvem
+  'Seminovos Movida Campinas Shopping Dom Pedro': 'everton', // apelido ViaNuvem
   'Jundiai': 'everton',
   'Praia Grande': 'everton',
+  'Seminovos Movida Praia Grande - Sp': 'everton', // apelido ViaNuvem
   'Santos': 'everton',
 
   'Sao Jose dos Campos': 'wesley',
@@ -105,7 +113,9 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
 
   'Penha': 'william',
   'Radial Leste': 'william',
+  'Sao Paulo Radial Leste': 'william', // apelido ViaNuvem
   'Sao Miguel': 'william',
+  'Sao Miguel Paulista': 'william', // apelido ViaNuvem
   'Vila Carrao': 'william',
   'Vila Ema': 'william',
   'Vila Guilherme': 'william',
@@ -135,16 +145,19 @@ function doPost(e) {
 
     const dataFormatada = Utilities.formatDate(new Date(r.created_at), FUSO_HORARIO, 'dd/MM/yyyy HH:mm');
 
-    // Ordem exata das colunas A-I da aba "Página1". E-MAIL, CPF e STATUS
-    // ficam em branco (nao coletados no form / preenchimento manual do time).
+    // Ordem exata das colunas A-I da aba "Página1". E-MAIL e CPF vem
+    // preenchidos quando a captacao veio da importacao do ViaNuvem
+    // (vendedor_id = "vianuvem"); ficam em branco para captacoes do
+    // formulario do vendedor (que nao coleta esses 2 campos). STATUS
+    // continua em branco (preenchimento manual do time).
     getAba(planilhaId, SHEET_NAME).appendRow([
       dataFormatada,       // A DATA
       r.vendedor_nome,     // B VENDEDOR
       r.loja,              // C LOJA
       r.nome_cliente,      // D NOME
       r.telefone,          // E CELULAR
-      '',                  // F E-MAIL (nao coletado)
-      '',                  // G CPF (nao coletado)
+      r.email || '',       // F E-MAIL
+      r.cpf || '',         // G CPF
       r.placa,             // H PLACA
       '',                  // I STATUS (preenchimento manual do time)
     ]);

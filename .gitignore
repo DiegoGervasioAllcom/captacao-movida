@@ -1,5 +1,6 @@
 # dependencias
 /node_modules
+/vianuvem-import/node_modules
 /.pnp
 .pnp.js
 
