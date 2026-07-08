@@ -147,7 +147,15 @@ async function capturarDiagnosticoDeFalha(page) {
     const textoTela = await page.evaluate(() => document.body.innerText).catch(() => "");
     const textoResumido = textoTela.replace(/\s+/g, " ").trim().slice(0, 400);
 
-    return `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}"`;
+    // So o TAMANHO do valor digitado, nunca o valor em si - serve pra saber
+    // se os campos ficaram preenchidos ou se a pagina resetou/nunca preencheu.
+    const tamUsuario = await page.inputValue("#username").then((v) => v.length).catch(() => -1);
+    const tamSenha = await page.inputValue("#password").then((v) => v.length).catch(() => -1);
+
+    return (
+      `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}". ` +
+      `Campo usuario tinha ${tamUsuario} caractere(s), campo senha tinha ${tamSenha} caractere(s).`
+    );
   } catch (err) {
     return `(nao foi possivel capturar diagnostico: ${err})`;
   }
@@ -168,11 +176,14 @@ async function login(usuario, senha) {
     await page.goto(URL_LOGIN, { waitUntil: "domcontentloaded" });
     await page.fill("#username", usuario);
     await page.fill("#password", senha);
-    await Promise.all([
-      page.waitForLoadState("load").catch(() => {}),
-      page.click('button[type="submit"]'),
-    ]);
-    await page.waitForTimeout(2000);
+    await page.click('button[type="submit"]');
+
+    // Espera ATIVAMENTE sair de /login (login real pode demorar mais que um
+    // tempo fixo curto pra processar+redirecionar) em vez de um sleep cego -
+    // sai assim que a URL mudar, ou desiste em 10s.
+    await page
+      .waitForURL((u) => !u.pathname.includes("/login"), { timeout: 10000 })
+      .catch(() => {});
 
     const url = page.url();
     if (url.includes("/login")) {
