@@ -1,8 +1,12 @@
 # vianuvem-import
 
-Job standalone (fora do app Next.js de propósito, para não colocar o Playwright
-na imagem Docker de produção) que importa leads do **Unico Auto / ViaNuvem**
-para a tabela `captacoes` do Captação Movida, uma vez por hora.
+Job separado do app Next.js de propósito (imagem Docker própria, não entra na
+imagem de produção do app) que importa leads do **Unico Auto / ViaNuvem** para
+a tabela `captacoes` do Captação Movida, uma vez por hora.
+
+Roda em **Docker** (não precisa instalar Node.js no servidor): a imagem usa a
+base oficial do Playwright, que já vem com o Chromium e todas as bibliotecas
+de sistema necessárias — nada de `apt-get`/`sudo` no host.
 
 ## Como funciona
 
@@ -20,17 +24,25 @@ para a tabela `captacoes` do Captação Movida, uma vez por hora.
 
 ## Instalar no servidor
 
+Pré-requisito: só o Docker que já está instalado (o mesmo que roda o app
+principal). Nada de Node.js no host.
+
 ```bash
+git pull                      # traz a pasta vianuvem-import/ pro servidor
 cd vianuvem-import
-npm install                 # também baixa o Chromium do Playwright (postinstall)
 cp .env.example .env
-# preencha .env com o usuário/senha do ViaNuvem e as chaves do Supabase
+chmod 600 .env                # so o dono le - tem credencial de producao dentro
+# preencha .env com o usuario/senha do ViaNuvem e as chaves do Supabase
+
+docker compose build          # baixa a imagem base do Playwright (1a vez demora um pouco)
 ```
 
-Teste manual antes de agendar:
+Teste manual antes de agendar (confirme no log que diz "importado(s)" e
+depois confira se a linha realmente apareceu em `captacoes` e na planilha
+certa):
 
 ```bash
-npm run importar
+docker compose run --rm importer
 ```
 
 ## Agendar (cron, 1x por hora)
@@ -39,32 +51,56 @@ npm run importar
 crontab -e
 ```
 
-Adicione:
+Adicione (ajuste o caminho completo para o real do seu servidor):
 
 ```
-0 * * * * cd /caminho/completo/para/captacao-movida/vianuvem-import && /usr/bin/node importar.mjs >> /var/log/vianuvem-import.log 2>&1
+0 * * * * cd /caminho/completo/captacao-movida/vianuvem-import && /usr/bin/docker compose run --rm importer >> /var/log/vianuvem-import.log 2>&1
 ```
 
-Ajuste `/caminho/completo/...` e o caminho do `node` (confira com `which node`).
+Confira o caminho do `docker` com `which docker` (cron roda com um `PATH`
+bem mais curto que o seu shell interativo, então o caminho completo evita
+"command not found" ali também).
 
-## Calibrar no primeiro uso real
+### Girar o log (ele cresce pra sempre, 1x/hora)
 
-Este script foi escrito sem conseguir inspecionar um relatório exportado de
-verdade (a URL assinada de download carrega token de acesso, então não dava
-pra abrir com segurança durante o desenvolvimento). Depois da primeira
-execução real, confira:
+```bash
+sudo tee /etc/logrotate.d/vianuvem-import > /dev/null <<'EOF'
+/var/log/vianuvem-import.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+}
+EOF
+```
 
-- **Nomes das colunas**: se o log mostrar avisos de "linha sem placa/nome/
-  telefone", abra o arquivo baixado manualmente (pela própria tela do
-  ViaNuvem, botão Exportar) e confira os cabeçalhos reais contra a lista em
-  `COLUNAS` no topo de `importar.mjs` — ajuste os textos candidatos se
-  necessário.
+### Ser avisado se o cron falhar
+
+Adicione uma linha `MAILTO=seu-email@exemplo.com` no topo do `crontab -e`
+(depende de um MTA local configurado no servidor - `sendmail`/`postfix`) ou,
+mais simples, confira o log de vez em quando:
+
+```bash
+tail -50 /var/log/vianuvem-import.log
+```
+
+## O que já foi calibrado, e o que ainda não
+
+Já testei o mapeamento de campos (`mapearLinha`) contra um relatório real
+exportado da tela — todos os campos (nome, CPF, e-mail, telefone, placa,
+loja) foram extraídos corretamente, e a correção de um bug real (coluna
+"Estabelecimento" colidindo com "ID Estabelecimento") já está aplicada. O
+que **ainda não** foi validado, porque só dá pra testar com o cron rodando
+de verdade contra o login:
+
 - **Paginação**: se "Processos que atuo" crescer muito (centenas), confirme
-  se o relatório exportado traz tudo de uma vez ou se precisa paginar.
-- **Resposta assíncrona**: se o log mostrar timeout esperando o relatório,
-  o contrato real da API para pedidos assíncronos precisa ser investigado
-  (a função `aguardarRelatorio` tem um retry simples que pode não bater com
-  o comportamento real).
+  se o relatório exportado continua trazendo tudo de uma vez.
+- **Resposta assíncrona**: o teste real veio com `async: false` direto; se
+  algum dia a API responder de forma assíncrona, o retry simples em
+  `aguardarRelatorio` pode não bater com o contrato real.
+- **O próprio login via Playwright**: a lógica de detectar sucesso/falha
+  (checar se a URL ainda tem `/login`) nunca rodou com usuário/senha reais.
 
 ## Quando a sessão parar de funcionar
 

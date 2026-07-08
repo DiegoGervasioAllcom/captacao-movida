@@ -29,7 +29,7 @@ npm run lint       # ESLint
 - `src/lib/` — `supabase.ts`, `supabase-server.ts`, `roles.ts`, `validation.ts`, `format.ts`, `types.ts` (mantenha `Captacao`/`NovaCaptacao` em sincronia com o schema).
 - `src/middleware.ts` — auth + autorização por papel.
 - `supabase/schema.sql` — tabela `captacoes` + índice + policies RLS.
-- `vianuvem-import/` — job standalone (fora do app, próprio `package.json`) que importa leads do ViaNuvem/Unico Auto de hora em hora via cron. Ver `vianuvem-import/README.md`.
+- `vianuvem-import/` — job standalone (fora do app, imagem Docker própria baseada em `mcr.microsoft.com/playwright`) que importa leads do ViaNuvem/Unico Auto de hora em hora via cron (`docker compose run --rm importer`). Ver `vianuvem-import/README.md`.
 
 ## Agentes e skills deste projeto (`.claude/`)
 Roteie a tarefa ao especialista, que aciona a skill correspondente:
