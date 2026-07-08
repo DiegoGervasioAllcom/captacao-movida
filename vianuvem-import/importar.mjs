@@ -43,6 +43,7 @@ import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { normalizarPlaca, limparNomeLoja, mascararPlaca } from "./lib/normalizar.mjs";
+import WebSocket from "ws";
 
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
@@ -243,7 +244,13 @@ async function importar() {
     );
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  // O cliente do Supabase cria um RealtimeClient internamente mesmo sem
+  // usarmos realtime, e ele exige WebSocket nativo (Node 22+). A imagem do
+  // Playwright pode vir com uma versao mais antiga de Node - passar o `ws`
+  // explicitamente evita depender de qual Node vem em cada imagem base.
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    realtime: { transport: WebSocket },
+  });
 
   console.log("[vianuvem-import] Autenticando...");
   const cookies = await login(VIANUVEM_USUARIO, VIANUVEM_SENHA);
