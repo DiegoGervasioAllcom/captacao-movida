@@ -212,9 +212,12 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
 
     // Espera ATIVAMENTE sair de /login (login real pode demorar mais que um
     // tempo fixo curto pra processar+redirecionar) em vez de um sleep cego -
-    // sai assim que a URL mudar, ou desiste em 10s.
+    // sai assim que a URL mudar, ou desiste no timeout. 10s se mostrou curto
+    // demais em producao (site mais lento em alguns horarios derrubava um
+    // login valido como se tivesse falhado) - 30s da mais folga sem custar
+    // muito quando o login e rapido, ja que sai assim que a URL mudar.
     await page
-      .waitForURL((u) => !u.pathname.includes("/login"), { timeout: 10000 })
+      .waitForURL((u) => !u.pathname.includes("/login"), { timeout: 30000 })
       .catch(() => {});
 
     const url = page.url();
