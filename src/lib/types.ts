@@ -13,6 +13,8 @@ export interface Captacao {
   id: string;
   vendedor_id: string;
   vendedor_nome: string | null;
+  /** Telefone do VENDEDOR (publicMetadata.telefone no Clerk), nao do cliente. */
+  vendedor_telefone: string | null;
   loja: string | null;
   nome_cliente: string;
   telefone: string;
@@ -27,6 +29,7 @@ export interface Captacao {
 export interface NovaCaptacao {
   vendedor_id: string;
   vendedor_nome: string | null;
+  vendedor_telefone?: string | null;
   loja: string | null;
   nome_cliente: string;
   telefone: string;

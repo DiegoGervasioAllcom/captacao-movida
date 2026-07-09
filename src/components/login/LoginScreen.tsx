@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import styles from "./login.module.css";
 import LoginHero from "./LoginHero";
 import SignInForm from "./SignInForm";
+import SignUpForm from "./SignUpForm";
 
 // =========================================================================
 // Login "Supper Certo Seguros" — componentizado.
@@ -17,6 +21,8 @@ const COINS: [string, string][] = [
 ];
 
 export default function LoginScreen() {
+  const [modo, setModo] = useState<"entrar" | "criarConta">("entrar");
+
   return (
     <main className={styles.screen}>
       <div className={styles.stage}>
@@ -35,8 +41,23 @@ export default function LoginScreen() {
 
         <LoginHero />
 
-        <section className={styles.card} aria-label="Acesso ao portal">
-          <SignInForm />
+        <section
+          className={`${styles.card} ${modo === "criarConta" ? styles.cardTall : ""}`}
+          aria-label="Acesso ao portal"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className={styles.avatar} src="/login/avatar.png" alt="" aria-hidden="true" />
+          <h2 className={styles.cardTitle}>
+            Bem vindo ao portal de
+            <br />
+            indicações <b>Supper Certo</b> Seguros
+          </h2>
+
+          {modo === "entrar" ? (
+            <SignInForm onCriarConta={() => setModo("criarConta")} />
+          ) : (
+            <SignUpForm onVoltar={() => setModo("entrar")} />
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className={styles.cardBorder} src="/login/card-border.png" alt="" aria-hidden="true" />
         </section>

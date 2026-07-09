@@ -194,6 +194,16 @@
      resolveria contra a largura do .stage (containing block), não a do
      próprio card — valores equivalentes a 3.4%/6%/4% da largura do card. */
   padding: 1.04cqw 1.84cqw 1.22cqw;
+  /* Altura é fixa (acima); o formulário de cadastro tem mais campos que o
+     de login e pode não caber - rola dentro do card em vez de vazar. */
+  overflow-y: auto;
+}
+/* Cadastro tem mais campos que login - card mais alto so nesse modo, com
+   mais respiro no rodape (padding-bottom maior). Login continua com a
+   altura original, sem espaco vazio sobrando. */
+.cardTall {
+  height: 76%;
+  padding-bottom: 3.2cqw;
 }
 /* borda "neon" real, extraída do Figma (asset), sobreposta ao card */
 .cardBorder {
@@ -248,6 +258,32 @@
 }
 .field input:focus { outline: none; }
 .field input::placeholder { color: #8a8194; }
+
+/* Variante compacta: usada no cadastro (4 campos + botao), que nao cabe no
+   mesmo espaco do login (2 campos) com o tamanho normal do .field. */
+.fieldCompact { margin-bottom: 1.7%; }
+.fieldCompact input,
+.fieldCompact.selectField select {
+  font-size: 1.05cqw;
+  padding: 0.75cqw 1.4cqw;
+}
+
+.selectField select {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 1.35cqw;
+  color: #2a2130;
+  padding: 1.15cqw 1.6cqw;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%238a8194' d='M4 6l4 4 4-4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1.4cqw center;
+}
+.selectField select:invalid { color: #8a8194; }
+.selectField select:focus { outline: none; }
 .eye {
   appearance: none;
   border: none;
@@ -303,7 +339,7 @@
   display: block;
   width: 100%;
   text-align: center;
-  margin: 3% 0 0;
+  margin: 3% 0 4%;
   font-family: inherit;
   font-size: 1cqw;
   color: #cabdd0;
@@ -315,15 +351,44 @@
   color: #c9bcd0;
   margin: -1% 0 4%;
 }
+.hint {
+  text-align: left;
+  font-size: 0.8cqw;
+  line-height: 1.2;
+  color: #9d93a6;
+  margin: -1% 0 0.6%;
+}
 .alert {
-  border-radius: 0.5cqw;
-  padding: 0.7cqw 1cqw;
-  font-size: 0.95cqw;
-  line-height: 1.3;
+  /* px/rem, nao cqw: agora e sempre um toast fixo (.alertFloat), com
+     largura propria independente do tamanho do .stage - cqw deixaria o
+     texto desproporcional em telas muito grandes/pequenas. */
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.35;
   text-align: center;
   margin-bottom: 3.5%;
-  background: rgba(186, 26, 26, 0.92);
+  background: rgba(186, 26, 26, 0.95);
   color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+/* Toast fixo no topo da tela em vez de empurrar os campos pra baixo - erro
+   de qualquer tamanho nunca muda a altura do card (era isso que vazava da
+   moldura: card com altura fixa + erro de 2 linhas = botao escondido,
+   exigindo rolar dentro do card, o que ninguem percebe que pode fazer).
+   `position: fixed` de proposito (nao absolute): sai da area de corte do
+   `.card` (que tem overflow-y:auto) independente de onde o alerta esta no
+   DOM - um "absolute" relativo ao card continuaria sendo cortado por ele.
+   Funciona igual em mobile e desktop, sem precisar de override por media
+   query. */
+.alertFloat {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 420px);
+  margin-bottom: 0;
+  z-index: 50;
 }
 
 /* =========================================================================
@@ -352,8 +417,11 @@
     position: static;
     width: 100%;
     max-width: 400px;
+    /* height:auto de proposito (sem max-height/overflow): se o conteudo nao
+       couber na tela, a PAGINA toda rola - muito mais obvio pro usuario do
+       que precisar descobrir que da pra rolar dentro de um card pequeno. */
     height: auto;
-    padding: 30px 26px 26px;
+    padding: 30px 26px 46px;
     border-radius: 20px;
     border: 1px solid rgba(242, 106, 27, 0.4);
   }
@@ -361,11 +429,17 @@
   .cardTitle { font-size: 15px; margin-bottom: 20px; }
   .field { border-radius: 12px; border-width: 2px; margin-bottom: 14px; }
   .field input { font-size: 16px; padding: 15px 16px; }
+  .selectField select { font-size: 16px; padding: 15px 16px; background-position: right 14px center; }
+  /* .card vira height:auto no mobile - nao precisa da versao compacta. */
+  .fieldCompact { margin-bottom: 14px; }
+  .fieldCompact input,
+  .fieldCompact.selectField select { font-size: 16px; padding: 15px 16px; }
   .eye { padding: 0 14px; }
   .eye svg { width: 22px; height: 22px; }
   .enter { font-size: 16px; padding: 16px; border-radius: 12px; box-shadow: 0 12px 26px rgba(242, 106, 27, 0.4); }
   .forgot { font-size: 15px; color: #f9812f; }
   .back { font-size: 14px; }
   .note { font-size: 14px; }
+  .hint { font-size: 12px; margin: -8px 0 12px; }
   .alert { font-size: 13px; padding: 11px 14px; border-radius: 10px; }
 }

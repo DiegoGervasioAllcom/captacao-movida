@@ -14,6 +14,7 @@ import styles from "./vendedor/indicacao.module.css";
 interface Props {
   vendedorId: string;
   vendedorNome: string | null;
+  vendedorTelefone: string | null;
   loja: string | null;
   /** Chamado quando uma captacao e gravada com sucesso. */
   onCriada: (c: Captacao) => void;
@@ -25,6 +26,7 @@ type Estado = "idle" | "enviando";
 export default function CapturaForm({
   vendedorId,
   vendedorNome,
+  vendedorTelefone,
   loja,
   onCriada,
 }: Props) {
@@ -59,6 +61,7 @@ export default function CapturaForm({
         .insert({
           vendedor_id: vendedorId,
           vendedor_nome: vendedorNome,
+          vendedor_telefone: vendedorTelefone,
           loja,
           nome_cliente: nome.trim(),
           telefone: telefone.trim(),

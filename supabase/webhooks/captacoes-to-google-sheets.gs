@@ -107,6 +107,7 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sao Jose dos Campos': 'wesley',
   'Taubate': 'wesley',
   'Guarulhos Timoteo Penteado': 'wesley',
+  'Timoteo Penteado': 'wesley', // apelido: planilha "Dados Vendedores por Loja" omite "Guarulhos"
   'Mogi das Cruzes': 'wesley',
   'Aricanduva': 'wesley',
   'Itaim Paulista': 'wesley',

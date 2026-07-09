@@ -18,6 +18,10 @@ create table captacoes (
   id uuid primary key default gen_random_uuid(),
   vendedor_id text not null,
   vendedor_nome text,
+  -- Telefone do VENDEDOR (publicMetadata.telefone no Clerk, informado no
+  -- autocadastro), nao do cliente. Nulo para vendedores cadastrados antes
+  -- desse campo existir, ou para a importacao do ViaNuvem.
+  vendedor_telefone text,
   -- Loja do vendedor no momento da captacao (publicMetadata.loja no Clerk,
   -- definida por um admin - o vendedor nao escolhe). Nula se o admin ainda
   -- nao configurou a loja daquele vendedor.
@@ -68,8 +72,10 @@ using ( (auth.jwt()->>'app_role') = 'gestor' );
 --   alter table captacoes add column loja text;
 --   alter table captacoes add column cpf text;
 --   alter table captacoes add column email text;
+--   alter table captacoes add column vendedor_telefone text;
 --   create index on captacoes (placa);
 --
--- Linhas antigas ficam com loja/cpf/email = null; nao precisa de RLS nova
--- (as policies ja sao por vendedor_id/app_role, independente dessas colunas).
+-- Linhas antigas ficam com loja/cpf/email/vendedor_telefone = null; nao
+-- precisa de RLS nova (as policies ja sao por vendedor_id/app_role,
+-- independente dessas colunas).
 -- =========================================================================

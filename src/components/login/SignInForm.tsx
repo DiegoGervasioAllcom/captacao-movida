@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
 import styles from "./login.module.css";
 import { EyeIcon } from "./icons";
+import { clerkError } from "./clerkError";
 
 // Card de login (avatar + título + formulário). Clerk headless useSignIn:
 // login por identificador (e-mail) + recuperação de senha. Texto real.
@@ -11,16 +12,8 @@ import { EyeIcon } from "./icons";
 function goHome() {
   window.location.href = "/";
 }
-function clerkError(err: unknown): string {
-  const e = err as { errors?: Array<{ longMessage?: string; message?: string }> };
-  return (
-    e?.errors?.[0]?.longMessage ??
-    e?.errors?.[0]?.message ??
-    "Não foi possível concluir. Tente novamente."
-  );
-}
 
-export default function SignInForm() {
+export default function SignInForm({ onCriarConta }: { onCriarConta: () => void }) {
   const { isLoaded, signIn, setActive } = useSignIn();
   const [mode, setMode] = useState<"signin" | "reset">("signin");
   const [identifier, setIdentifier] = useState("");
@@ -78,14 +71,7 @@ export default function SignInForm() {
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className={styles.avatar} src="/login/avatar.png" alt="" aria-hidden="true" />
-      <h2 className={styles.cardTitle}>
-        Bem vindo ao portal de
-        <br />
-        indicações <b>Supper Certo</b> Seguros
-      </h2>
-      {error && <div className={styles.alert} role="alert">{error}</div>}
+      {error && <div className={`${styles.alert} ${styles.alertFloat}`} role="alert">{error}</div>}
 
       {mode === "signin" ? (
         <form onSubmit={handleSignIn}>
@@ -93,6 +79,7 @@ export default function SignInForm() {
           {passField("Senha")}
           <button className={styles.enter} type="submit" disabled={busy}>{busy ? "Entrando..." : "Entrar"}</button>
           <button type="button" className={styles.forgot} onClick={() => switchMode("reset")}>Esqueceu a Senha?</button>
+          <button type="button" className={styles.back} onClick={onCriarConta}>Ainda não tem conta? Criar conta</button>
         </form>
       ) : !resetSent ? (
         <form onSubmit={handleResetRequest}>
