@@ -22,6 +22,8 @@ export interface Captacao {
   /** Vem da importacao automatica do ViaNuvem (vendedor_id = "vianuvem"); nulo para captacoes de vendedor. */
   cpf: string | null;
   email: string | null;
+  /** Origem do lead: "Indicacao" (formulario do vendedor) ou "ViaNuvem" (importacao automatica). */
+  canal: string | null;
   created_at: string;
 }
 
@@ -36,4 +38,5 @@ export interface NovaCaptacao {
   placa: string;
   cpf?: string | null;
   email?: string | null;
+  canal?: string | null;
 }

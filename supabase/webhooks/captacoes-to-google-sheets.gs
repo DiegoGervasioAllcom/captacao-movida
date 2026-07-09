@@ -21,9 +21,11 @@
 // legal do fluxo ViaNuvem, diferente do fluxo de indicacao do vendedor.
 //
 // Colunas da aba "Página1" em cada planilha (linha 2 = cabecalho, dados a
-// partir da linha 3):
-//   A DATA | B VENDEDOR | C LOJA | D NOME | E CELULAR | F E-MAIL
-//   G CPF | H PLACA | I STATUS
+// partir da linha 3) - atualizado em 09/07/2026 apos as 3 planilhas
+// ganharem a coluna "CANAL" (antes era A-I, sem ela; o time preenche
+// manualmente, o webhook so deixa em branco):
+//   A DATA | B CANAL | C VENDEDOR | D LOJA | E NOME | F CELULAR
+//   G E-MAIL | H CPF | I PLACA | J STATUS
 //
 // COMO IMPLANTAR (copie este arquivo, nao rode daqui):
 //   1. Em https://script.google.com, abra (ou crie) um projeto STANDALONE
@@ -146,21 +148,27 @@ function doPost(e) {
 
     const dataFormatada = Utilities.formatDate(new Date(r.created_at), FUSO_HORARIO, 'dd/MM/yyyy HH:mm');
 
-    // Ordem exata das colunas A-I da aba "Página1". E-MAIL e CPF vem
-    // preenchidos quando a captacao veio da importacao do ViaNuvem
-    // (vendedor_id = "vianuvem"); ficam em branco para captacoes do
-    // formulario do vendedor (que nao coleta esses 2 campos). STATUS
-    // continua em branco (preenchimento manual do time).
+    // Ordem exata das colunas A-J da aba "Página1". Uma coluna nova "CANAL"
+    // foi inserida na posicao B nas 3 planilhas (confirmado visualmente em
+    // 09/07/2026 - antes era A-I, sem essa coluna). CANAL vem de
+    // `record.canal` ("Indicacao" = formulario do vendedor, "ViaNuvem" =
+    // importacao automatica) - mesmo valor que ja fica gravado na coluna
+    // `canal` de `captacoes`. E-MAIL e CPF vem preenchidos quando a
+    // captacao veio da importacao do ViaNuvem (vendedor_id = "vianuvem");
+    // ficam em branco para captacoes do formulario do vendedor (que nao
+    // coleta esses 2 campos). STATUS continua em branco (preenchimento
+    // manual do time).
     getAba(planilhaId, SHEET_NAME).appendRow([
       dataFormatada,       // A DATA
-      r.vendedor_nome,     // B VENDEDOR
-      r.loja,              // C LOJA
-      r.nome_cliente,      // D NOME
-      r.telefone,          // E CELULAR
-      r.email || '',       // F E-MAIL
-      r.cpf || '',         // G CPF
-      r.placa,             // H PLACA
-      '',                  // I STATUS (preenchimento manual do time)
+      r.canal || '',       // B CANAL
+      r.vendedor_nome,     // C VENDEDOR
+      r.loja,              // D LOJA
+      r.nome_cliente,      // E NOME
+      r.telefone,          // F CELULAR
+      r.email || '',       // G E-MAIL
+      r.cpf || '',         // H CPF
+      r.placa,             // I PLACA
+      '',                  // J STATUS (preenchimento manual do time)
     ]);
 
     return respostaJson({ ok: true });

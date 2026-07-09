@@ -172,6 +172,7 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
        "placa": "…",
        "cpf": null,
        "email": null,
+       "canal": "Indicação",
        "created_at": "…"
      },
      "schema": "public",
@@ -179,7 +180,7 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
    }
    ```
 
-   `cpf`/`email` só vêm preenchidos para captações com `vendedor_id = "vianuvem"` (ver [`vianuvem-import/`](./vianuvem-import/)); no formulário do vendedor esses dois campos sempre chegam nulos.
+   `cpf`/`email` só vêm preenchidos para captações com `vendedor_id = "vianuvem"` (ver [`vianuvem-import/`](./vianuvem-import/)); no formulário do vendedor esses dois campos sempre chegam nulos. `canal` indica a origem do lead: `"Indicação"` (formulário do vendedor) ou `"ViaNuvem"` (importação automática) — replicado na coluna CANAL das planilhas do Google Sheets.
 
 > Dica: para esconder a URL/segredo do webhook e adicionar lógica (retries, transformação do payload), você pode apontar o hook para uma **Supabase Edge Function** que lê a URL real de uma *secret* (`supabase secrets set WEBHOOK_URL=…`) e repassa o POST. Isso mantém a URL totalmente fora do código e do banco.
 

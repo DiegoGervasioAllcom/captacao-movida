@@ -391,6 +391,7 @@ async function importar() {
       placa: lead.placa,
       cpf: lead.cpf,
       email: lead.email,
+      canal: "ViaNuvem",
     });
 
     if (erroInsercao) {

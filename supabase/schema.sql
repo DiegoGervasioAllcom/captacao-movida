@@ -34,6 +34,10 @@ create table captacoes (
   -- captacoes feitas por um vendedor.
   cpf text,
   email text,
+  -- Canal de origem do lead: "Indicacao" (formulario do vendedor) ou
+  -- "ViaNuvem" (importacao automatica). Espelhado na coluna CANAL das 3
+  -- planilhas do Google Sheets (ver captacoes-to-google-sheets.gs).
+  canal text,
   created_at timestamptz not null default now()
 );
 
@@ -73,9 +77,10 @@ using ( (auth.jwt()->>'app_role') = 'gestor' );
 --   alter table captacoes add column cpf text;
 --   alter table captacoes add column email text;
 --   alter table captacoes add column vendedor_telefone text;
+--   alter table captacoes add column canal text;
 --   create index on captacoes (placa);
 --
--- Linhas antigas ficam com loja/cpf/email/vendedor_telefone = null; nao
--- precisa de RLS nova (as policies ja sao por vendedor_id/app_role,
+-- Linhas antigas ficam com loja/cpf/email/vendedor_telefone/canal = null;
+-- nao precisa de RLS nova (as policies ja sao por vendedor_id/app_role,
 -- independente dessas colunas).
 -- =========================================================================

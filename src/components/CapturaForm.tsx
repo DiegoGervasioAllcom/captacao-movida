@@ -66,6 +66,7 @@ export default function CapturaForm({
           nome_cliente: nome.trim(),
           telefone: telefone.trim(),
           placa: normalizarPlaca(placa),
+          canal: "Indicação",
         })
         .select()
         .single();
