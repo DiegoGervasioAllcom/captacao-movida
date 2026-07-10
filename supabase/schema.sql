@@ -70,6 +70,75 @@ for select
 using ( (auth.jwt()->>'app_role') = 'gestor' );
 
 -- =========================================================================
+-- Cadastro de indicacao pelo vendedor (formulario "Nova Indicacao"): usa
+-- esta funcao em vez de INSERT direto, porque precisa de uma regra que a
+-- RLS sozinha nao da conta - se a placa ja existir na tabela:
+--   - vendedor_id = 'vianuvem' (importacao automatica, ninguem "dono"
+--     ainda) -> a linha e ATUALIZADA para virar indicacao deste vendedor.
+--   - vendedor_id de OUTRO vendedor de verdade -> bloqueia (erro
+--     'PLACA_DE_OUTRO_VENDEDOR'), nunca sobrescreve o lead de um colega.
+--   - nao existe -> insere normalmente.
+-- SECURITY DEFINER e necessario porque, pela RLS normal, o vendedor nem
+-- consegue "ver" uma linha que nao e dele (nem pra saber que existe) -
+-- por isso o client nao teria como decidir sozinho entre esses 3 casos.
+-- O vendedor_id usado e sempre lido do token (auth.jwt()->>'sub') aqui
+-- dentro, nunca aceito como parametro do cliente - evita spoofing.
+create or replace function registrar_captacao_vendedor(
+  p_vendedor_nome text,
+  p_vendedor_telefone text,
+  p_loja text,
+  p_nome_cliente text,
+  p_telefone text,
+  p_placa text
+) returns captacoes
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_vendedor_id text := auth.jwt()->>'sub';
+  v_existente captacoes;
+  v_resultado captacoes;
+begin
+  if v_vendedor_id is null then
+    raise exception 'NAO_AUTENTICADO';
+  end if;
+
+  select * into v_existente from captacoes where placa = p_placa limit 1;
+
+  if v_existente.id is not null and v_existente.vendedor_id not in ('vianuvem', v_vendedor_id) then
+    raise exception 'PLACA_DE_OUTRO_VENDEDOR';
+  end if;
+
+  if v_existente.id is not null then
+    update captacoes set
+      vendedor_id = v_vendedor_id,
+      vendedor_nome = p_vendedor_nome,
+      vendedor_telefone = p_vendedor_telefone,
+      loja = p_loja,
+      nome_cliente = p_nome_cliente,
+      telefone = p_telefone,
+      canal = 'Indicação'
+    where id = v_existente.id
+    returning * into v_resultado;
+  else
+    insert into captacoes (
+      vendedor_id, vendedor_nome, vendedor_telefone, loja,
+      nome_cliente, telefone, placa, canal
+    ) values (
+      v_vendedor_id, p_vendedor_nome, p_vendedor_telefone, p_loja,
+      p_nome_cliente, p_telefone, p_placa, 'Indicação'
+    )
+    returning * into v_resultado;
+  end if;
+
+  return v_resultado;
+end;
+$$;
+
+grant execute on function registrar_captacao_vendedor to authenticated;
+
+-- =========================================================================
 -- Migracao: se a tabela `captacoes` ja existir em producao (dados reais ja
 -- rodando), NAO rode o `create table` acima de novo - rode so isto:
 --
@@ -83,4 +152,8 @@ using ( (auth.jwt()->>'app_role') = 'gestor' );
 -- Linhas antigas ficam com loja/cpf/email/vendedor_telefone/canal = null;
 -- nao precisa de RLS nova (as policies ja sao por vendedor_id/app_role,
 -- independente dessas colunas).
+--
+-- A funcao `registrar_captacao_vendedor` (e o `grant execute` logo apos)
+-- e nova - copie e rode o bloco inteiro dela tambem em producao. E
+-- seguro rodar de novo no futuro (`create or replace function`).
 -- =========================================================================

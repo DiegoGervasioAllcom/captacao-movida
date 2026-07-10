@@ -12,11 +12,10 @@ import type { Captacao } from "@/lib/types";
 import styles from "./vendedor/indicacao.module.css";
 
 interface Props {
-  vendedorId: string;
   vendedorNome: string | null;
   vendedorTelefone: string | null;
   loja: string | null;
-  /** Chamado quando uma captacao e gravada com sucesso. */
+  /** Chamado quando uma captacao e gravada (nova ou reivindicada) com sucesso. */
   onCriada: (c: Captacao) => void;
 }
 
@@ -24,7 +23,6 @@ type Estado = "idle" | "enviando";
 
 // Formulario de captacao: nome, telefone e placa, com validacao e mascaras.
 export default function CapturaForm({
-  vendedorId,
   vendedorNome,
   vendedorTelefone,
   loja,
@@ -53,29 +51,29 @@ export default function CapturaForm({
     try {
       const supabase = createBrowserSupabaseClient();
 
-      // 2) Grava PRIMEIRO no Supabase (fonte da verdade do lead).
-      //    O encaminhamento ao webhook acontece DEPOIS, via Database Webhook
-      //    do Supabase (configurado no painel) - nunca perdemos um lead.
-      const { data, error } = await supabase
-        .from("captacoes")
-        .insert({
-          vendedor_id: vendedorId,
-          vendedor_nome: vendedorNome,
-          vendedor_telefone: vendedorTelefone,
-          loja,
-          nome_cliente: nome.trim(),
-          telefone: telefone.trim(),
-          placa: normalizarPlaca(placa),
-          canal: "Indicação",
-        })
-        .select()
-        .single();
+      // 2) Grava PRIMEIRO no Supabase (fonte da verdade do lead), via funcao
+      //    (nao INSERT direto): se a placa ja existir vinda do ViaNuvem
+      //    (vendedor_id = "vianuvem"), a funcao ATUALIZA a linha pra virar
+      //    indicacao deste vendedor, em vez de duplicar. Se a placa ja
+      //    pertencer a OUTRO vendedor de verdade, ela bloqueia (nunca
+      //    sobrescreve o lead de um colega). O encaminhamento ao webhook
+      //    acontece DEPOIS, via Database Webhook do Supabase - nunca
+      //    perdemos um lead.
+      const { data, error } = await supabase.rpc("registrar_captacao_vendedor", {
+        p_vendedor_nome: vendedorNome,
+        p_vendedor_telefone: vendedorTelefone,
+        p_loja: loja,
+        p_nome_cliente: nome.trim(),
+        p_telefone: telefone.trim(),
+        p_placa: normalizarPlaca(placa),
+      });
 
       if (error) {
-        // Trata sessao expirada / RLS / rede de forma amigavel.
-        const msg = /jwt|exp|auth/i.test(error.message)
-          ? "Sua sessao expirou. Atualize a pagina e entre novamente."
-          : `Nao foi possivel salvar: ${error.message}`;
+        const msg = /PLACA_DE_OUTRO_VENDEDOR/.test(error.message)
+          ? "Essa placa já foi indicada por outro vendedor."
+          : /jwt|exp|auth|NAO_AUTENTICADO/i.test(error.message)
+            ? "Sua sessao expirou. Atualize a pagina e entre novamente."
+            : `Nao foi possivel salvar: ${error.message}`;
         setErroGeral(msg);
         return;
       }

@@ -60,7 +60,6 @@ export default function VendedorPage() {
         <section className={styles.card}>
           {isLoaded && user && (
             <CapturaForm
-              vendedorId={user.id}
               vendedorNome={nome}
               vendedorTelefone={telefoneVendedor}
               loja={loja}
