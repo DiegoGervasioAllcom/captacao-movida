@@ -18,12 +18,17 @@ Este documento descreve, de forma resumida, como a plataforma trata dados pessoa
 | CPF | Dado pessoal de identificação direta | Importado do ViaNuvem/Unico Auto (nunca coletado pelo formulário do vendedor) |
 | E-mail | Dado pessoal / contato | Importado do ViaNuvem/Unico Auto (nunca coletado pelo formulário do vendedor) |
 | Identificação do vendedor (id/nome) | Dado do colaborador | Clerk, ou valor fixo `"vianuvem"` para captações importadas automaticamente |
-| Loja/estabelecimento | Metadado operacional | `publicMetadata.loja` (Clerk) ou "Estabelecimento" do relatório ViaNuvem |
+| Telefone do vendedor | Dado do colaborador | Informado pelo próprio vendedor no autocadastro (`publicMetadata.telefone` no Clerk, espelhado em `captacoes.vendedor_telefone`) |
+| E-mail e senha do vendedor | Dado do colaborador / credencial de acesso | Informados pelo próprio vendedor no autocadastro; geridos inteiramente pelo Clerk (autenticação) — não ficam armazenados em `captacoes` |
+| Loja/estabelecimento | Metadado operacional | `publicMetadata.loja` (Clerk, escolhida pelo vendedor no autocadastro dentre uma lista fixa) ou "Estabelecimento" do relatório ViaNuvem |
+| Canal de origem do lead | Metadado operacional | Gerado pelo sistema (`"Indicação"` ou `"ViaNuvem"`, coluna `canal`) |
 | Data/hora da captação | Metadado | Gerado pelo sistema |
 
 Não são coletados dados sensíveis (art. 5º, II). O formulário deve coletar **apenas** os campos necessários (minimização de dados, art. 6º, III).
 
 **CPF e e-mail** entraram no schema para suportar a importação automática do ViaNuvem/Unico Auto (`vianuvem-import/`) e alimentam as colunas correspondentes das 3 planilhas do Google Sheets (seção 7) — finalidade definida: preencher os campos CPF/E-mail que a planilha gerencial já tinha. Só são preenchidos para captações com `vendedor_id = "vianuvem"`; captações do formulário do vendedor continuam sem esses 2 campos.
+
+**Dados do próprio vendedor (autocadastro):** desde que o portal ganhou cadastro self-service (tela de login, aba "Criar conta"), o vendedor informa nome, e-mail, telefone e senha diretamente. Isso é dado de **colaborador**, tratado sob um regime distinto do dado do cliente na tabela 2 acima — a base legal aqui é a relação de trabalho/parceria com a loja, não consentimento do cliente final. E-mail e senha ficam inteiramente sob custódia do Clerk (autenticação); nome e loja ficam em `publicMetadata`; telefone é o único campo do vendedor replicado em `captacoes` (`vendedor_telefone`), porque acompanha cada indicação registrada.
 
 ## 3. Finalidade
 
@@ -53,6 +58,10 @@ Isso é uma origem de dados **fundamentalmente diferente** do formulário do ven
 
 **`vendedor_id = "vianuvem"`:** captações importadas por este job recebem um `vendedor_id` fixo que não corresponde a nenhum usuário real do Clerk. Por consequência das policies de RLS (seção 6), esses registros são visíveis **apenas ao gestor** — comportamento esperado e verificado.
 
+### 4.2 Reivindicação de lead do ViaNuvem por um vendedor
+
+Quando um vendedor cadastra "Nova Indicação" pelo portal usando uma placa que já existe em `captacoes` com `vendedor_id = "vianuvem"`, a função `registrar_captacao_vendedor` (`supabase/schema.sql`) **atualiza** essa linha em vez de criar uma nova: `vendedor_id`/`vendedor_nome`/`vendedor_telefone` passam a ser os do vendedor que cadastrou, e `canal` muda para `"Indicação"`. Na prática, isso muda quem enxerga o registro pela RLS — de "só o gestor" para "aquele vendedor + o gestor". Se a placa já pertencer a **outro** vendedor de verdade (não ao `"vianuvem"`), a função bloqueia a operação e nada muda — um vendedor nunca sobrescreve o registro de um colega.
+
 ## 5. Direitos do titular
 
 O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimização/bloqueio/eliminação, portabilidade, informação sobre compartilhamento e revogação do consentimento. O controlador deve disponibilizar um canal (ex.: e-mail do DPO) e um procedimento para atender essas solicitações dentro dos prazos legais.
@@ -71,7 +80,7 @@ O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimiz
 Os dados são encaminhados a um ou mais **destinos configurados no Database Webhook** (sistemas do controlador). Cada destino deve ser listado no registro de operações (art. 37), com finalidade própria documentada. O controlador deve garantir que cada destino tenha base legal e medidas de segurança adequadas. Destinos em uso:
 
 - **Webhook externo principal:** sistema de CRM/atendimento do controlador (finalidade e medidas de segurança a documentar pelo controlador).
-- **Google Sheets (via Google Apps Script Web App):** cópia de nome, telefone, placa, vendedor e data/hora, para acompanhamento/planilha gerencial (ver `supabase/webhooks/captacoes-to-google-sheets.gs`). O script roteia cada captação para **uma de 3 planilhas** conforme a loja do vendedor (`publicMetadata.loja` no Clerk). Pontos de atenção específicos deste destino:
+- **Google Sheets (via Google Apps Script Web App):** cópia de data, canal, vendedor, loja, nome, telefone, e-mail, CPF e placa, para acompanhamento/planilha gerencial (ver `supabase/webhooks/captacoes-to-google-sheets.gs`). O script roteia cada captação para **uma de 3 planilhas** conforme a loja do vendedor (`publicMetadata.loja` no Clerk), e também **atualiza** a linha existente (não duplica) quando um vendedor reivindica um lead do ViaNuvem (seção 4.2) — por isso o webhook precisa estar configurado para os eventos Insert **e** Update. Pontos de atenção específicos deste destino:
   - Nenhuma das 3 planilhas tem RLS: qualquer pessoa com acesso de leitura no Google Workspace vê os dados de **todos** os vendedores daquela planilha (várias lojas por planilha), equivalente ao nível de acesso de um gestor. O compartilhamento de cada planilha deve ser restrito à mesma lista de pessoas autorizadas como "gestor" na aplicação.
   - O Web App do Apps Script aceita POST de "qualquer pessoa" (é assim que o Supabase consegue chamá-lo); a única proteção é um segredo em query string, que deve ser tratado como credencial de produção (nunca no código, rotação se vazar — regra de ouro nº 5 do `CLAUDE.md`).
   - Não há confirmação de entrega: falhas nesse destino (incluindo loja sem planilha mapeada) não ficam visíveis ao Supabase, o que pode gerar divergência entre a fonte da verdade (`captacoes`) e as planilhas.

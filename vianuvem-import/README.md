@@ -25,9 +25,16 @@ de sistema necessárias — nada de `apt-get`/`sudo` no host.
 4. Para cada processo: normaliza a placa e pula se ela **já existir em
    `captacoes`, de qualquer origem** (formulário do vendedor ou importação
    anterior) — evita duplicar lead do mesmo veículo.
-5. Insere os novos com `vendedor_id = "vianuvem"`. O Database Webhook do
-   Supabase (já configurado) dispara sozinho e roteia para a planilha certa do
+5. Insere os novos com `vendedor_id = "vianuvem"` e `canal = "ViaNuvem"`
+   (usado pela coluna CANAL nas planilhas). O Database Webhook do Supabase
+   (já configurado) dispara sozinho e roteia para a planilha certa do
    Google Sheets — nada aqui mexe nisso.
+
+Se um vendedor de verdade depois cadastrar "Nova Indicação" pelo portal
+usando a mesma placa, essa linha é **atualizada** (não duplicada) para virar
+indicação daquele vendedor — ver `registrar_captacao_vendedor` em
+`supabase/schema.sql` e `CapturaForm.tsx`. Esse é o único jeito hoje de uma
+captação `vianuvem` "trocar de dono".
 
 Rodando em produção desde 08/07/2026, de hora em hora via cron — ver
 `doc/` na raiz do projeto para o histórico completo de bugs reais
@@ -163,6 +170,13 @@ se algo parecido acontecer de novo, comece por esta lista:
   funcionando manual**: não era ambiente/cron — era o site respondendo mais
   devagar em alguns horários, estourando o prazo de 10s de espera pelo
   redirecionamento pós-login. Aumentado para 30s.
+- **Campo novo (`canal`) ficando `null` mesmo com o código certo no
+  repositório**: o Dockerfile copia o código pra dentro da imagem (não é
+  volume ao vivo) — `git pull` sozinho não muda o container em produção.
+  Depois de qualquer mudança em `importar.mjs`, sempre rode
+  `docker compose build` de novo antes do próximo cron, senão ele continua
+  rodando a imagem antiga em silêncio (sem erro nenhum, só faltando o
+  campo novo).
 
 ## Quando a sessão parar de funcionar
 

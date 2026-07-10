@@ -21,15 +21,18 @@ npm run lint       # ESLint
 6. **Server vs Client:** painel do gestor é SSR; área do vendedor e formulários são `"use client"`. Não troque sem motivo.
 7. **Estilo:** use tokens CSS e classes `cm-*` de `src/app/globals.css`. Sem bibliotecas de UI nem cores hardcoded. Mobile-first + acessibilidade (labels, `aria-*`, `role="alert"`/`"status"`).
 8. **Validação:** reaproveite `src/lib/validation.ts` (telefone 10/11 dígitos; placa Mercosul `ABC1D23` ou antiga `ABC1234`; máscaras). Não duplique regex.
-9. **LGPD:** dados pessoais = nome, telefone, placa (formulário do vendedor) e também CPF/e-mail (só na importação automática do ViaNuvem, `vianuvem-import/`). Minimização, acesso por RLS, sem logar dado pessoal (placa mascarada em log quando necessário). Ver `LGPD.md`.
+9. **LGPD:** dados pessoais = nome, telefone, placa (formulário do vendedor) e também CPF/e-mail (só na importação automática do ViaNuvem, `vianuvem-import/`). O próprio vendedor também tem dado pessoal coletado no autocadastro (nome, e-mail, telefone, senha — Clerk cuida da autenticação, `vendedor_telefone` fica em `captacoes`). Minimização, acesso por RLS, sem logar dado pessoal (placa mascarada em log quando necessário). Ver `LGPD.md`.
+10. **Cadastro de indicação nunca é INSERT puro.** `CapturaForm` chama a função `registrar_captacao_vendedor` (RPC, `supabase/schema.sql`) em vez de inserir direto: se a placa já existir vinda do ViaNuvem (`vendedor_id = "vianuvem"`), a função **atualiza** a linha pra virar indicação do vendedor (dispara `UPDATE` no Database Webhook — por isso ele precisa estar ligado pra Insert **e** Update); se a placa já for de outro vendedor de verdade, bloqueia. Nunca volte a fazer `supabase.from("captacoes").insert(...)` direto nesse formulário.
 
 ## Estrutura
-- `src/app/` — `layout.tsx` (ClerkProvider), `page.tsx` (redirect por papel), `vendedor/` (client), `gestor/` (server), `sign-in`/`sign-up`.
-- `src/components/` — `CapturaForm`, `GestorClient`, `AppHeader`, `Brand`, `AuthCard`.
-- `src/lib/` — `supabase.ts`, `supabase-server.ts`, `roles.ts`, `validation.ts`, `format.ts`, `types.ts` (mantenha `Captacao`/`NovaCaptacao` em sincronia com o schema).
+- `src/app/` — `layout.tsx` (ClerkProvider), `page.tsx` (redirect por papel / tela de login na raiz), `vendedor/` (client), `gestor/` (server), `api/vendedor/perfil/` (promove loja/telefone do autocadastro pra `publicMetadata`), `sign-in`/`sign-up` (redirecionam pra `/`, o login real é a raiz).
+- `src/components/` — `CapturaForm`, `GestorClient`, `AppHeader`, `Brand`, `login/` (`LoginScreen`, `SignInForm`, `SignUpForm`, `clerkError.ts`, `icons.tsx`), `vendedor/` (`IndicacaoHeader`).
+- `src/lib/` — `supabase.ts`, `supabase-server.ts`, `roles.ts` (claim `app_role`), `loja.ts` (loja/telefone do `publicMetadata`, `LOJAS_DISPONIVEIS`), `validation.ts`, `format.ts`, `types.ts` (mantenha `Captacao`/`NovaCaptacao` em sincronia com o schema).
 - `src/middleware.ts` — auth + autorização por papel.
-- `supabase/schema.sql` — tabela `captacoes` + índice + policies RLS.
+- `supabase/schema.sql` — tabela `captacoes` + índices + policies RLS + função `registrar_captacao_vendedor`.
+- `supabase/webhooks/captacoes-to-google-sheets.gs` — destino Google Sheets do Database Webhook, precisa estar configurado para Insert **e** Update.
 - `vianuvem-import/` — job standalone (fora do app, imagem Docker própria baseada em `mcr.microsoft.com/playwright`) que importa leads do ViaNuvem/Unico Auto de hora em hora via cron (`docker compose run --rm importer`). Ver `vianuvem-import/README.md`.
+- `doc/documentacao-tecnica.html` — histórico técnico detalhado do que foi construído (login, cadastro, ViaNuvem, bugs reais e correções).
 
 ## Agentes e skills deste projeto (`.claude/`)
 Roteie a tarefa ao especialista, que aciona a skill correspondente:

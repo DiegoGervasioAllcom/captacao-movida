@@ -2,10 +2,14 @@
 // Captacao Movida - Destino do Database Webhook: Google Sheets
 // (roteado por loja para 3 planilhas diferentes)
 //
-// Recebe o POST que o Database Webhook do Supabase dispara a cada INSERT
-// em `captacoes` (ver README.md secao "4. Configurar o Database Webhook"),
-// descobre em qual das 3 planilhas a loja do vendedor cai (LOJA_PARA_PLANILHA
-// abaixo) e adiciona uma linha la.
+// Recebe o POST que o Database Webhook do Supabase dispara a cada INSERT ou
+// UPDATE em `captacoes` (ver README.md secao "4. Configurar o Database
+// Webhook" - o webhook precisa estar configurado para OS DOIS eventos, nao
+// so Insert), descobre em qual das 3 planilhas a loja do vendedor cai
+// (LOJA_PARA_PLANILHA abaixo) e adiciona (INSERT) ou atualiza (UPDATE) uma
+// linha la. O UPDATE acontece quando um vendedor "reivindica" pelo portal
+// um lead que ja existia (ex.: importado do ViaNuvem) - ver
+// registrar_captacao_vendedor no schema.sql.
 //
 // Este e um projeto Apps Script STANDALONE (nao vinculado a nenhuma das
 // planilhas) - precisa ser assim porque escreve em 3 arquivos diferentes.
@@ -45,7 +49,9 @@
 //      Copie a URL gerada (termina em /exec).
 //   6. No Supabase: Integrations > Webhooks (pode aparecer em Database, a
 //      Supabase mudou essa tela de lugar algumas vezes) > Create a new hook
-//        - Table: captacoes | Events: Insert | Type: HTTP Request
+//        - Table: captacoes | Events: Insert E Update (os DOIS, marque as
+//          duas caixas - Update e usado quando um vendedor reivindica um
+//          lead do ViaNuvem pelo portal) | Type: HTTP Request
 //        - Method: POST
 //        - URL: <URL do passo 5>?secret=<mesmo valor do passo 4>
 //        - HTTP Headers: Content-Type: application/json
@@ -134,8 +140,9 @@ function doPost(e) {
     }
 
     const payload = JSON.parse(e.postData.contents);
-    if (payload.type !== 'INSERT' || payload.table !== 'captacoes' || !payload.record) {
-      registrarErro('payload inesperado (nao e INSERT em captacoes)', e);
+    const tipo = payload.type;
+    if ((tipo !== 'INSERT' && tipo !== 'UPDATE') || payload.table !== 'captacoes' || !payload.record) {
+      registrarErro('payload inesperado (nao e INSERT/UPDATE em captacoes)', e);
       return respostaJson({ ok: false });
     }
 
@@ -146,7 +153,7 @@ function doPost(e) {
       return respostaJson({ ok: false });
     }
 
-    const dataFormatada = Utilities.formatDate(new Date(r.created_at), FUSO_HORARIO, 'dd/MM/yyyy HH:mm');
+    const aba = getAba(planilhaId, SHEET_NAME);
 
     // Ordem exata das colunas A-J da aba "Página1". Uma coluna nova "CANAL"
     // foi inserida na posicao B nas 3 planilhas (confirmado visualmente em
@@ -158,24 +165,64 @@ function doPost(e) {
     // ficam em branco para captacoes do formulario do vendedor (que nao
     // coleta esses 2 campos). STATUS continua em branco (preenchimento
     // manual do time).
-    getAba(planilhaId, SHEET_NAME).appendRow([
-      dataFormatada,       // A DATA
-      r.canal || '',       // B CANAL
-      r.vendedor_nome,     // C VENDEDOR
-      r.loja,              // D LOJA
-      r.nome_cliente,      // E NOME
-      r.telefone,          // F CELULAR
-      r.email || '',       // G E-MAIL
-      r.cpf || '',         // H CPF
-      r.placa,             // I PLACA
-      '',                  // J STATUS (preenchimento manual do time)
-    ]);
+    if (tipo === 'INSERT') {
+      const dataFormatada = Utilities.formatDate(new Date(r.created_at), FUSO_HORARIO, 'dd/MM/yyyy HH:mm');
+      aba.appendRow([
+        dataFormatada,       // A DATA
+        r.canal || '',       // B CANAL
+        r.vendedor_nome,     // C VENDEDOR
+        r.loja,              // D LOJA
+        r.nome_cliente,      // E NOME
+        r.telefone,          // F CELULAR
+        r.email || '',       // G E-MAIL
+        r.cpf || '',         // H CPF
+        r.placa,             // I PLACA
+        '',                  // J STATUS (preenchimento manual do time)
+      ]);
+    } else {
+      // UPDATE: acontece quando um vendedor "reivindica" pelo portal um
+      // lead que ja existia (ex.: importado do ViaNuvem) - ver
+      // registrar_captacao_vendedor no schema.sql. Atualiza a linha
+      // existente em vez de duplicar; NAO mexe em DATA (A) nem STATUS (J,
+      // preenchimento manual do time). So procura na planilha resolvida
+      // pela loja ATUAL do registro - se a loja mudou pra uma planilha
+      // diferente da que a linha original esta, nao tenta mover entre
+      // planilhas (caso raro), so registra no log de erro pra revisao manual.
+      const linha = encontrarLinhaPorPlaca(aba, r.placa);
+      if (linha === -1) {
+        registrarErro('UPDATE sem linha correspondente (placa pode estar em outra planilha): id ' + (r.id || ''), e);
+        return respostaJson({ ok: false });
+      }
+      aba.getRange(linha, 2, 1, 8).setValues([[
+        r.canal || '',       // B CANAL
+        r.vendedor_nome,     // C VENDEDOR
+        r.loja,              // D LOJA
+        r.nome_cliente,      // E NOME
+        r.telefone,          // F CELULAR
+        r.email || '',       // G E-MAIL
+        r.cpf || '',         // H CPF
+        r.placa,             // I PLACA
+      ]]);
+    }
 
     return respostaJson({ ok: true });
   } catch (err) {
     registrarErro(String(err && err.stack || err), e);
     return respostaJson({ ok: false });
   }
+}
+
+// Procura pela placa na coluna I (indice 9) a partir da linha 3 (dados
+// comecam depois do cabecalho na linha 2). Retorna o numero da linha (1-based,
+// pronto pra usar em getRange) ou -1 se nao encontrar.
+function encontrarLinhaPorPlaca(aba, placa) {
+  const ultimaLinha = aba.getLastRow();
+  if (ultimaLinha < 3) return -1;
+  const placas = aba.getRange(3, 9, ultimaLinha - 2, 1).getValues();
+  for (let i = 0; i < placas.length; i++) {
+    if (placas[i][0] === placa) return i + 3;
+  }
+  return -1;
 }
 
 function resolverPlanilhaId(loja) {

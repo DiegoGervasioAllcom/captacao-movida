@@ -188,6 +188,8 @@ O encaminhamento ao destino externo é feito pelo **Database Webhook** do Supaba
 
 Além do webhook principal configurado acima, este projeto também usa (em paralelo, como um segundo Database Webhook na mesma tabela) um **Google Apps Script publicado como Web App** para replicar cada captação em uma de 3 planilhas, roteada pela loja do vendedor (`publicMetadata.loja`). Script completo em [`supabase/webhooks/captacoes-to-google-sheets.gs`](./supabase/webhooks/captacoes-to-google-sheets.gs), com o passo a passo de implantação no cabeçalho do próprio arquivo.
 
+> ⚠️ Esse segundo webhook (Google Sheets) precisa estar configurado para os eventos **Insert E Update** (marque as duas caixas), diferente do webhook principal acima. O evento Update é disparado quando um vendedor "reivindica" pelo portal um lead que já existia (ex.: importado do ViaNuvem) — ver `registrar_captacao_vendedor` em `supabase/schema.sql`.
+
 ---
 
 ## 5. Definir papéis dos usuários

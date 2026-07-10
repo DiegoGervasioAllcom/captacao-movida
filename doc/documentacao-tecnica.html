@@ -381,6 +381,11 @@
       <li><a href="#auditoria">Auditoria da documentação existente</a></li>
       <li><a href="#pendencias">Pendências e próximos passos</a></li>
       <li><a href="#referencias">Referência rápida de arquivos</a></li>
+      <li><a href="#autocadastro">Parte 2 — Autocadastro do vendedor</a></li>
+      <li><a href="#canal-reivindicacao">Canal de origem e reivindicação de lead</a></li>
+      <li><a href="#sheets-update">Apps Script: Insert + Update</a></li>
+      <li><a href="#bugs2">Bugs adicionais e correções (2ª rodada)</a></li>
+      <li><a href="#auditoria2">2ª auditoria de documentação</a></li>
     </ol>
   </nav>
 
@@ -883,6 +888,12 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
       <li><strong>Alerta de falha do cron:</strong> <code>MAILTO</code> no crontab foi documentado como opção,
         mas depende de um MTA (<code>sendmail</code>/<code>postfix</code>) configurado no servidor — ainda não
         confirmado se existe.</li>
+      <li><strong>Reivindicação de lead entre planilhas diferentes</strong> (seção 15): se a loja do vendedor que
+        reivindica for de uma planilha diferente de onde a linha original do ViaNuvem está, o Apps Script não
+        move a linha — só loga o erro. Caso raro, mas sem tratamento automático ainda.</li>
+      <li><strong>Espaço em disco no servidor de produção</strong> tende a se repetir (já aconteceu 3x nesta
+        rodada de trabalho) — considerar aumentar o volume ou automatizar limpeza periódica de imagens Docker
+        não usadas.</li>
     </ul>
   </section>
 
@@ -893,14 +904,256 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
       <tr><th>Arquivo</th><th>O que é</th></tr>
       <tr><td><span class="file-ref">src/lib/roles.ts</span></td><td>Leitura do papel via claim <code>app_role</code>.</td></tr>
       <tr><td><span class="file-ref">src/lib/loja.ts</span></td><td>Leitura de <code>publicMetadata.loja</code> (case-insensitive).</td></tr>
-      <tr><td><span class="file-ref">supabase/schema.sql</span></td><td>Tabela <code>captacoes</code>, índices, policies RLS.</td></tr>
-      <tr><td><span class="file-ref">supabase/webhooks/captacoes-to-google-sheets.gs</span></td><td>Apps Script: destino Google Sheets, roteamento por loja.</td></tr>
+      <tr><td><span class="file-ref">supabase/schema.sql</span></td><td>Tabela <code>captacoes</code>, índices, policies RLS, função <code>registrar_captacao_vendedor</code>.</td></tr>
+      <tr><td><span class="file-ref">supabase/webhooks/captacoes-to-google-sheets.gs</span></td><td>Apps Script: destino Google Sheets, roteamento por loja, trata Insert e Update.</td></tr>
+      <tr><td><span class="file-ref">src/components/login/SignUpForm.tsx</span></td><td>Autocadastro do vendedor (nome, e-mail, telefone, loja, senha).</td></tr>
+      <tr><td><span class="file-ref">src/components/login/clerkError.ts</span></td><td>Tradução dos erros do Clerk pra pt-BR.</td></tr>
+      <tr><td><span class="file-ref">src/app/api/vendedor/perfil/route.ts</span></td><td>Promove loja/telefone do autocadastro pra <code>publicMetadata</code>.</td></tr>
       <tr><td><span class="file-ref">vianuvem-import/importar.mjs</span></td><td>Script principal do job de importação.</td></tr>
       <tr><td><span class="file-ref">vianuvem-import/lib/normalizar.mjs</span></td><td>Normalização de placa/loja e máscara de log.</td></tr>
       <tr><td><span class="file-ref">vianuvem-import/README.md</span></td><td>Guia operacional do job (instalação, cron, troubleshooting).</td></tr>
       <tr><td><span class="file-ref">LGPD.md</span></td><td>Adequação à LGPD, incluindo a origem ViaNuvem.</td></tr>
       <tr><td><span class="file-ref">DOCKER.md</span></td><td>Deploy do app principal via Docker.</td></tr>
       <tr><td><span class="file-ref">CLAUDE.md</span></td><td>Regras de ouro do projeto (fonte da verdade para convenções).</td></tr>
+    </table>
+    </div>
+  </section>
+
+  <section id="autocadastro">
+    <div class="section-head"><span class="section-num">13</span><h2>Parte 2 — Autocadastro do vendedor</h2></div>
+    <div class="callout info">
+      <span class="callout-title">Sobre esta parte 2</span>
+      <p>Tudo abaixo foi construído numa rodada de trabalho posterior à primeira versão deste documento
+        (seções 1–12). Mantém a mesma estrutura, só continuando a numeração.</p>
+    </div>
+    <p>
+      A tela de login ganhou uma segunda aba, <strong>"Criar conta"</strong>, para o vendedor se autocadastrar
+      sem depender de um admin criar a conta manualmente no Clerk. Arquivos novos em
+      <span class="file-ref">src/components/login/</span>: <code>SignUpForm.tsx</code> (o formulário) e
+      <code>clerkError.ts</code> (tradução de erros do Clerk, ver seção 15). <code>LoginScreen.tsx</code> passou a
+      controlar qual dos dois formulários (entrar/criar conta) é exibido.
+    </p>
+
+    <h3>Campos e fluxo</h3>
+    <p>Nome completo, e-mail, telefone, loja (select com as 20 lojas mapeadas — ver <code>LOJAS_DISPONIVEIS</code>
+      em <span class="file-ref">src/lib/loja.ts</span>) e senha (mínimo 8 caracteres). Fluxo em 2 etapas, igual ao
+      padrão que o Clerk exige para verificação de e-mail:</p>
+    <div class="flow">
+      <div class="flow-box"><strong>1. Preenche dados</strong><small>signUp.create + unsafeMetadata</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>2. Código por e-mail</strong><small>signUp.prepareEmailAddressVerification</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>3. Confirma código</strong><small>attemptEmailAddressVerification</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>4. Promove metadata</strong><small>/api/vendedor/perfil (servidor)</small></div>
+    </div>
+
+    <h3>Por que loja/telefone não vão direto pro publicMetadata</h3>
+    <p>
+      O cliente (navegador) só pode escrever em <code>unsafeMetadata</code> no Clerk — nunca em
+      <code>publicMetadata</code>, que é onde <code>roleFromClaims</code>/<code>lojaFromPublicMetadata</code> leem
+      de verdade. Isso é proposital do Clerk: se o cliente pudesse escrever <code>publicMetadata</code> livremente,
+      um vendedor mal-intencionado poderia se autopromover a <code>gestor</code>. Por isso o fluxo tem uma etapa a
+      mais: depois que a conta é confirmada (passo 3), o formulário chama
+      <span class="file-ref">src/app/api/vendedor/perfil/route.ts</span> — uma rota de servidor, com a
+      <code>CLERK_SECRET_KEY</code>, que lê <code>unsafeMetadata.loja</code>/<code>.telefone</code>, valida contra
+      <code>LOJAS_DISPONIVEIS</code> e um regex de telefone, e só então grava em <code>publicMetadata</code>.
+      <code>role</code> nunca é escrito por essa rota — sem <code>app_role</code> definido, o app já trata como
+      <code>"vendedor"</code> (menor privilégio).
+    </p>
+
+    <h3>As 20 lojas do select</h3>
+    <p>
+      A lista inicial tinha só 11 lojas (as que apareciam numa planilha de vendedores usada como referência).
+      Comparando com o mapa de roteamento do Apps Script (<code>LOJA_PARA_PLANILHA</code>), existiam
+      <strong>20 lojas reais</strong> distintas mapeadas pra alguma das 3 planilhas. Corrigido para as 20,
+      validado programaticamente rodando a mesma normalização do <code>.gs</code> contra cada uma (nenhuma cai em
+      "sem planilha mapeada"). Uma delas, <code>"Campinas Shop Dom Pedro"</code>, precisa ficar exatamente
+      com esse texto (sem virar "Campinas Shopping Dom Pedro") — o apelido correspondente no mapa tem um hífen que
+      a normalização não remove; um nome "bonito" quebraria o roteamento dessa loja específica.
+    </p>
+
+    <h3>Restrição de cadastro no Clerk ("New sign-ups are currently restricted")</h3>
+    <p>
+      Esse erro apareceu ao testar — é uma configuração do Clerk (<strong>Configure → Restrictions → Enable
+      restricted mode</strong>), não um bug de código. A opção recomendada foi manter o modo restrito **ligado** e
+      usar a aba <strong>Allowlist</strong> com o padrão <code>*@movida.com.br</code> — permite cadastro só pra
+      quem tem e-mail da empresa, em vez de abrir cadastro público pra qualquer pessoa do mundo. Precisa ser
+      configurado nas duas instâncias do Clerk (Development e Production) separadamente.
+    </p>
+
+    <h3>Layout: o card de cadastro tem mais campos que o de login</h3>
+    <p>
+      O card do login/cadastro tem altura fixa no desktop (parte da composição do Figma). O formulário de
+      cadastro (5 campos) não cabia no mesmo espaço do login (2 campos), e cada tentativa de só "apertar" o
+      espaçamento entre campos esbarrava de novo no limite assim que qualquer mensagem de erro aparecia.
+      A solução final, depois de 3 tentativas: <code>.cardTall</code> (uma classe CSS aplicada só quando
+      <code>modo === "criarConta"</code>) aumenta a altura do card <em>só nesse modo</em> — login continua do
+      tamanho original, cadastro fica mais alto, e o alerta de erro virou um <strong>toast fixo no topo da
+      tela</strong> (<code>position: fixed</code>) em vez de empurrar os campos pra baixo — assim o card nunca
+      muda de tamanho por causa de uma mensagem de erro curta ou longa. Verificado com
+      <code>scrollHeight === clientHeight</code> (sem overflow escondido) antes de considerar resolvido.
+    </p>
+  </section>
+
+  <section id="canal-reivindicacao">
+    <div class="section-head"><span class="section-num">14</span><h2>Canal de origem e reivindicação de lead do ViaNuvem</h2></div>
+    <p>
+      Nova coluna <code>canal</code> em <code>captacoes</code>: <code>"Indicação"</code> quando o lead vem do
+      formulário do vendedor (<span class="file-ref">CapturaForm.tsx</span>), <code>"ViaNuvem"</code> quando vem
+      da importação automática (<span class="file-ref">vianuvem-import/importar.mjs</span>). Replicado na coluna
+      CANAL das 3 planilhas.
+    </p>
+
+    <h3>O problema: mesma placa, duas origens</h3>
+    <p>
+      Pergunta que motivou esta seção: se o ViaNuvem já importou uma placa, e depois um vendedor de verdade
+      cadastra "Nova Indicação" com essa mesma placa pelo portal, o sistema duplicava o lead? <strong>Sim</strong>
+      — confirmado no código: <code>CapturaForm.tsx</code> fazia um <code>INSERT</code> direto, sem checar nada.
+      Não há <code>unique constraint</code> em <code>placa</code> (só um índice normal), então nada impedia.
+    </p>
+
+    <h3>Comportamento decidido</h3>
+    <table>
+      <tr><th>Situação</th><th>Comportamento</th></tr>
+      <tr><td>Placa nova (nunca vista)</td><td>Insere normalmente, como sempre.</td></tr>
+      <tr><td>Placa já existe com <code>vendedor_id = "vianuvem"</code></td>
+        <td><strong>Atualiza</strong> a linha existente: vira indicação do vendedor que cadastrou
+          (<code>vendedor_id</code>/<code>nome</code>/<code>telefone</code>/<code>loja</code> mudam,
+          <code>canal</code> vira <code>"Indicação"</code>). Não duplica.</td></tr>
+      <tr><td>Placa já existe com <code>vendedor_id</code> de <strong>outro vendedor de verdade</strong></td>
+        <td><strong>Bloqueia</strong> com mensagem ("Essa placa já foi indicada por outro vendedor.") — nunca
+          sobrescreve o lead de um colega.</td></tr>
+      <tr><td>ViaNuvem encontra placa já cadastrada (qualquer origem)</td>
+        <td>Já era o comportamento existente: <strong>pula</strong>, não insere nem atualiza (dedupe do
+          <code>vianuvem-import</code>, sem mudança nesta rodada).</td></tr>
+    </table>
+
+    <h3>Por que precisou de uma função no banco (RPC), não só RLS</h3>
+    <p>
+      A política de RLS de <code>SELECT</code> do vendedor só deixa ele ver as <strong>próprias</strong>
+      captações. Isso significa que, do lado do navegador, o vendedor não consegue nem verificar se uma placa "de
+      outro vendedor" existe — um <code>UPDATE</code> nessa linha simplesmente afeta 0 linhas, sem erro, do
+      mesmo jeito que aconteceria se a placa nunca tivesse existido. Não dava pra distinguir os dois casos só no
+      cliente. A solução: <code>registrar_captacao_vendedor</code>, uma função <code>SECURITY DEFINER</code> em
+      <span class="file-ref">supabase/schema.sql</span> que faz a checagem inteira dentro do banco (com
+      privilégio elevado, mas reimplementando manualmente a mesma regra de autorização) e só devolve o resultado
+      final — nunca expõe dados da linha de outro vendedor pro cliente. O <code>vendedor_id</code> usado é sempre
+      lido de <code>auth.jwt()-&gt;&gt;'sub'</code> dentro da função, nunca aceito como parâmetro — evita
+      spoofing. <code>CapturaForm.tsx</code> chama essa função via <code>.rpc(...)</code> em vez de
+      <code>.insert(...)</code> direto.
+    </p>
+  </section>
+
+  <section id="sheets-update">
+    <div class="section-head"><span class="section-num">15</span><h2>Apps Script: Insert + Update</h2></div>
+    <p>
+      Como a reivindicação de lead (seção 14) faz um <code>UPDATE</code> em <code>captacoes</code>, e o Database
+      Webhook estava configurado só para <code>Insert</code>, esse evento simplesmente não disparava — a
+      planilha continuava mostrando "ViaNuvem" como vendedor mesmo depois de reivindicado. Corrigido em duas
+      frentes:
+    </p>
+    <ul>
+      <li>O Database Webhook do Supabase (o que aponta pro Apps Script) precisa estar marcado para
+        <strong>Insert e Update</strong>, não só Insert.</li>
+      <li><span class="file-ref">captacoes-to-google-sheets.gs</span> passou a tratar os dois tipos de payload:
+        em <code>INSERT</code>, continua com <code>appendRow</code> (comportamento antigo); em
+        <code>UPDATE</code>, <strong>procura a linha existente pela placa</strong> (coluna I) na planilha
+        resolvida pela loja atual, e atualiza CANAL/VENDEDOR/LOJA/NOME/CELULAR/E-MAIL/CPF nela — sem tocar em
+        DATA nem STATUS.</li>
+    </ul>
+    <div class="callout warn">
+      <span class="callout-title">Limite conhecido</span>
+      <p>Se a loja do vendedor que reivindicou for de uma planilha <em>diferente</em> de onde a linha original do
+        ViaNuvem está (caso raro), o script não tenta mover a linha entre planilhas — só registra no log de erro
+        pra revisão manual.</p>
+    </div>
+    <h3>Coluna "CANAL" nova nas 3 planilhas (mudança externa, não nossa)</h3>
+    <p>
+      Durante essa mesma rodada, uma coluna <strong>"CANAL"</strong> foi inserida na posição B das 3 planilhas
+      (mudança feita direto no Google Sheets, fora do nosso controle) — empurrando VENDEDOR/LOJA/NOME/etc. uma
+      coluna pra direita. O script (que escrevia numa ordem fixa A–I) passou a preencher tudo uma coluna adiantada
+      do lugar certo. Corrigido ajustando a ordem do <code>appendRow</code>/<code>getRange</code> pra A–J, com
+      CANAL na posição B. <strong>Diagnóstico:</strong> abrindo a planilha e comparando célula por célula (via
+      referência de célula, não só olhando visualmente — texto longo de uma coluna vazia pode "vazar" por cima da
+      coluna vizinha e enganar a leitura visual).
+    </p>
+  </section>
+
+  <section id="bugs2">
+    <div class="section-head"><span class="section-num">16</span><h2>Bugs adicionais e correções (2ª rodada)</h2></div>
+    <ul class="timeline">
+      <li class="timeline-item fixed">
+        <span class="tag">clerk</span>
+        <h4>Erros do Clerk sempre em inglês</h4>
+        <p>O projeto já tinha <code>@clerk/localizations</code> (<code>ptBR</code>) configurado no
+          <code>ClerkProvider</code>, mas isso só traduz os <strong>componentes prontos</strong> do Clerk — como
+          o login/cadastro aqui são formulários customizados (<code>useSignIn</code>/<code>useSignUp</code>), o
+          texto de erro (<code>err.errors[0].message</code>) sempre vem em inglês da API. Corrigido traduzindo
+          manualmente pelo <code>code</code> do erro contra a mesma tabela de traduções que o
+          <code>@clerk/localizations</code> já mantém (<code>unstable__errors</code>) — com um detalhe a mais:
+          erros específicos de campo (ex.: "e-mail já cadastrado") usam uma chave composta
+          <code>codigo__nomeDoCampo</code>, não o código sozinho.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">produção</span>
+        <h4>Disco cheio de novo, mesmo depois de já ter sido resolvido uma vez</h4>
+        <p>O mesmo <code>ResourceExhausted: no space left on device</code> apareceu de novo num build posterior
+          — imagens antigas (principalmente <code>vianuvem-import</code>, ~2GB) acumulando de builds repetidos.
+          Resolvido de novo removendo imagens não usadas (<code>certbot</code>, depois <code>vianuvem-import</code>
+          quando necessário) — reforça que isso tende a se repetir a cada poucos dias nesse servidor com disco de
+          9.8GB; considerar aumentar o volume ou automatizar uma limpeza periódica.</p>
+      </li>
+      <li class="timeline-item fixed">
+        <span class="tag">produção</span>
+        <h4>Campo novo (<code>canal</code>) gravando <code>null</code> mesmo com o código certo no repositório</h4>
+        <p>Mesma causa raiz de sempre: o Dockerfile copia o código pra dentro da imagem (não é volume ao vivo) —
+          <code>git pull</code> sozinho não muda o container rodando. Corrigido lembrando de sempre rodar
+          <code>docker compose build</code> depois de um <code>git pull</code>, antes do próximo cron.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section id="auditoria2">
+    <div class="section-head"><span class="section-num">17</span><h2>2ª auditoria de documentação</h2></div>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Arquivo</th><th>Status</th><th>O que foi encontrado / corrigido</th></tr>
+      <tr>
+        <td><span class="file-ref">vianuvem-import/README.md</span></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>Não mencionava o campo <code>canal</code> no insert, nem o bug de imagem desatualizada gravando
+          <code>canal = null</code> em produção. Adicionado.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">LGPD.md</span></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>Não cobria o dado pessoal do <strong>próprio vendedor</strong> coletado no autocadastro (nome,
+          e-mail, telefone, senha), nem o mecanismo de reivindicação de lead (seção 4.2 nova) — que muda quem
+          enxerga um registro pela RLS. Lista de campos compartilhados com o Google Sheets (seção 7) também
+          estava incompleta (faltava e-mail/CPF/canal).</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">CLAUDE.md</span></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>Seção Estrutura estava desatualizada (não mencionava <code>src/components/login/</code>,
+          <code>api/vendedor/perfil/</code>, <code>src/lib/loja.ts</code>, a função
+          <code>registrar_captacao_vendedor</code>). Adicionada regra de ouro nº 10 sobre nunca fazer
+          <code>INSERT</code> direto no formulário de indicação.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">src/components/AuthCard.tsx</span></td>
+        <td><span class="status corrigido">Removido</span></td>
+        <td>Era código morto (15KB, não importado em lugar nenhum) — a primeira versão da tela de login, antes
+          da reconstrução fiel ao Figma com <code>LoginScreen</code>/<code>SignInForm</code>/<code>SignUpForm</code>,
+          e sem autocadastro (o próprio comentário do arquivo dizia isso). Confirmado com o usuário e removido.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">supabase/schema.sql</span></td>
+        <td><span class="status ok">Já atualizado</span></td>
+        <td>Novas colunas (<code>vendedor_telefone</code>, <code>canal</code>) e a função
+          <code>registrar_captacao_vendedor</code> já documentadas inline, com bloco de migração para produção.</td>
+      </tr>
     </table>
     </div>
   </section>
