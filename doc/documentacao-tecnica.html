@@ -386,6 +386,7 @@
       <li><a href="#sheets-update">Apps Script: Insert + Update</a></li>
       <li><a href="#bugs2">Bugs adicionais e correções (2ª rodada)</a></li>
       <li><a href="#auditoria2">2ª auditoria de documentação</a></li>
+      <li><a href="#agentes-skills">Atualização dos agentes/skills e limpeza de CSS</a></li>
     </ol>
   </nav>
 
@@ -441,8 +442,12 @@
       </li>
     </ul>
     <div class="callout info">
-      <span class="callout-title">Pendência aberta</span>
-      <p>O ajuste do <code>.tlArt</code> no mobile segue pendente de confirmação — ver seção 10.</p>
+      <span class="callout-title">Resolvido em 11/07/2026</span>
+      <p>O bug do <code>.tlArt</code> no mobile foi corrigido: a causa era a media query mobile esconder todas
+        as camadas decorativas (<code>.bgPlate</code>, <code>.coin</code>, <code>.logos</code>...) mas ter
+        esquecido o <code>.tlArt</code> na lista — a imagem ficava flutuando sobre o layout. Adicionado à
+        regra <code>display: none</code> e verificado com screenshot em 375px (limpo) e 1440px (arte intacta).
+        Ver seção 18.</p>
     </div>
   </section>
 
@@ -883,8 +888,6 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
       <li><strong>API oficial do ViaNuvem/Unico Auto:</strong> vale abrir um chamado com o suporte perguntando
         por acesso oficial — a conta já tem uma categoria de processo "TESTE API - USO EXCLUSIVO", indício de
         que pode existir uma integração documentada, eliminando a dependência de login automatizado a médio prazo.</li>
-      <li><strong>CSS <code>.tlArt</code> no mobile:</strong> bug pré-existente encontrado durante a verificação
-        do login mobile, não corrigido por estar fora do escopo e sem confirmação do usuário.</li>
       <li><strong>Alerta de falha do cron:</strong> <code>MAILTO</code> no crontab foi documentado como opção,
         mas depende de um MTA (<code>sendmail</code>/<code>postfix</code>) configurado no servidor — ainda não
         confirmado se existe.</li>
@@ -1153,6 +1156,75 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
         <td><span class="status ok">Já atualizado</span></td>
         <td>Novas colunas (<code>vendedor_telefone</code>, <code>canal</code>) e a função
           <code>registrar_captacao_vendedor</code> já documentadas inline, com bloco de migração para produção.</td>
+      </tr>
+    </table>
+    </div>
+  </section>
+
+  <section id="agentes-skills">
+    <div class="section-head"><span class="section-num">18</span><h2>Atualização dos agentes/skills e limpeza de CSS</h2></div>
+    <p>
+      Em 11/07/2026, os agentes e skills do Claude Code (<span class="file-ref">.claude/</span>) foram auditados
+      contra o código real — <strong>38 itens obsoletos ou faltantes</strong> foram encontrados com evidência de
+      arquivo:linha (ex.: a skill de validação ainda mandava fazer <code>INSERT</code> direto, violando a regra 10;
+      o agente de front-end citava o <code>AuthCard</code> removido; nada cobria o <code>vianuvem-import/</code>
+      nem o Apps Script do Google Sheets). Todos os 5 agentes e 6 skills foram reescritos, e foram criados
+      1 agente novo (<code>vianuvem-importer</code>) e 3 skills novas (<code>vianuvem-import-job</code>,
+      <code>sheets-webhook</code>, <code>docs-sync</code>). A tabela de roteamento do
+      <span class="file-ref">CLAUDE.md</span> foi atualizada.
+    </p>
+    <div class="table-wrap">
+    <table>
+      <tr><th>Item</th><th>Status</th><th>O que foi feito</th></tr>
+      <tr>
+        <td><span class="file-ref">src/app/globals.css</span></td>
+        <td><span class="status corrigido">Limpo</span></td>
+        <td>Removidas ~45 classes de CSS morto (de 1014 para 509 linhas): toda a família
+          <code>cm-auth-*</code> e <code>cm-step*</code> (tela de auth antiga, substituída pela
+          <code>LoginScreen</code>), <code>cm-field</code>/<code>cm-err</code>/<code>cm-hint</code>/<code>cm-list-*</code>
+          (formulário/lista migraram para <code>indicacao.module.css</code>), <code>cm-alert-ok</code>,
+          <code>cm-center</code>, <code>cm-spacer</code>. Verificado com grep (zero referências em TSX)
+          e <code>npm run build</code> limpo. Sobraram exatamente as 29 classes em uso.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">DOCKER.md</span></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>Não mencionava a segunda imagem Docker (<code>vianuvem-import</code>), não explicava que
+          <code>git pull</code> sem rebuild deixa o container antigo rodando em silêncio (causa raiz de 2
+          incidentes), e a única limpeza documentada era <code>docker image prune -f</code> — que pode liberar
+          0B. Adicionado o playbook completo de disco cheio (builder prune → image prune → remoção dirigida;
+          nunca <code>volume prune</code> às cegas).</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">CLAUDE.md</span> (regra 7)</td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>A regra de estilo dizia só "tokens + classes cm-*, sem cores hardcoded", contradizendo as telas
+          Figma (login e vendedor) que usam CSS Modules com cores fixas da marca de propósito. Agora descreve
+          os dois regimes. Seção Estrutura ganhou <code>LoginHero</code> e os arquivos <code>.module.css</code>.</td>
+      </tr>
+      <tr>
+        <td><span class="file-ref">src/components/login/login.module.css</span> (<code>.tlArt</code> no mobile)</td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td>Pendência aberta na seção 2: a media query mobile (<code>max-width: 820px</code>) escondia todas as
+          camadas decorativas do login, mas o <code>.tlArt</code> (cluster de raios/moeda do topo-esquerdo,
+          <code>position: absolute</code> com 39% de largura) ficou fora da lista e flutuava sobre o layout.
+          Adicionado ao <code>display: none</code>; verificado com screenshot em 375px (mobile limpo) e
+          1440px (desktop com a arte intacta). Na mesma verificação: o título do card
+          (<code>.cardTitle</code>) tem <code>white-space: nowrap</code> no desktop (2 linhas fixas com
+          <code>&lt;br&gt;</code>), e a linha "indicações Supper Certo Seguros" estourava a borda do card em
+          375px — corrigido com <code>white-space: normal</code> só na media query mobile (o título quebra em
+          3 linhas centralizadas; desktop inalterado).</td>
+      </tr>
+      <tr>
+        <td>Comentários com <code>role</code> em vez de <code>app_role</code></td>
+        <td><span class="status corrigido">Corrigido</span></td>
+        <td><span class="file-ref">src/lib/supabase-server.ts</span>, <span class="file-ref">src/app/gestor/page.tsx</span>
+          e a prosa da seção 6 do <span class="file-ref">LGPD.md</span> diziam que o gestor lê tudo "porque
+          <code>role</code> = 'gestor'" — exatamente a confusão que a regra de ouro 1 proíbe (o código estava
+          certo; só os comentários não). Também corrigido o nome do screenshot de falha de login no comentário
+          do <span class="file-ref">vianuvem-import/docker-compose.yml</span> (<code>falha-login-*.png</code>)
+          e o valor literal de <code>canal</code> no comentário de <span class="file-ref">src/lib/types.ts</span>
+          ("Indicação" com acento).</td>
       </tr>
     </table>
     </div>

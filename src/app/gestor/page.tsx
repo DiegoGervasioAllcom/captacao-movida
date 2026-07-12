@@ -8,7 +8,7 @@ import type { Captacao } from "@/lib/types";
 
 // =========================================================================
 // Painel do gestor (renderizado no servidor).
-// Busca TODAS as captacoes (a RLS libera tudo porque role = 'gestor') e
+// Busca TODAS as captacoes (a RLS libera tudo porque app_role = 'gestor') e
 // entrega ao componente cliente, que cuida da busca e da exportacao CSV.
 // =========================================================================
 

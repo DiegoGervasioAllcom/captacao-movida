@@ -71,7 +71,7 @@ O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimiz
 - **Autenticação** via Clerk (e-mail/senha, recuperação de senha).
 - **Autorização por papel**, aplicada em duas camadas:
   - **Aplicação:** middleware do Next.js restringe rotas (vendedor x gestor).
-  - **Banco (defesa principal):** Row Level Security (RLS) no Supabase. O vendedor só lê/insere as **próprias** captações (`auth.jwt()->>'sub' = vendedor_id`); o gestor lê todas (`role = 'gestor'`). Sem token válido do Clerk, o acesso é negado.
+  - **Banco (defesa principal):** Row Level Security (RLS) no Supabase. O vendedor só lê/insere as **próprias** captações (`auth.jwt()->>'sub' = vendedor_id`); o gestor lê todas (`app_role = 'gestor'`). Sem token válido do Clerk, o acesso é negado.
 - **Princípio do menor privilégio:** usuários sem papel definido são tratados como vendedor.
 - **Segredos** (chaves, URL do webhook) ficam exclusivamente em variáveis de ambiente, nunca no código ou no repositório.
 

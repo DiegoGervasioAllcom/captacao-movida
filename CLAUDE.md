@@ -19,14 +19,14 @@ npm run lint       # ESLint
 4. **Fluxo do lead (não inverter):** INSERT em `captacoes` (fonte da verdade) → o **Database Webhook** do Supabase dispara o POST ao destino. O frontend **não** chama o webhook.
 5. **Segredos só em env**, nunca no código. Veja `.env.example`. URL/segredo do webhook ficam fora do repositório.
 6. **Server vs Client:** painel do gestor é SSR; área do vendedor e formulários são `"use client"`. Não troque sem motivo.
-7. **Estilo:** use tokens CSS e classes `cm-*` de `src/app/globals.css`. Sem bibliotecas de UI nem cores hardcoded. Mobile-first + acessibilidade (labels, `aria-*`, `role="alert"`/`"status"`).
+7. **Estilo — dois regimes, não misture:** painel do gestor/AppHeader/Brand usam tokens CSS e classes `cm-*` de `src/app/globals.css` (sem cores hardcoded); tela de login e área do vendedor usam CSS Modules fiéis ao Figma "Supper Certo" (`login.module.css`, `indicacao.module.css`), onde as cores fixas da marca são **intencionais** — não converta pra tokens. Sem bibliotecas de UI. Mobile-first + acessibilidade (labels, `aria-*`, `role="alert"`/`"status"`) nos dois regimes.
 8. **Validação:** reaproveite `src/lib/validation.ts` (telefone 10/11 dígitos; placa Mercosul `ABC1D23` ou antiga `ABC1234`; máscaras). Não duplique regex.
 9. **LGPD:** dados pessoais = nome, telefone, placa (formulário do vendedor) e também CPF/e-mail (só na importação automática do ViaNuvem, `vianuvem-import/`). O próprio vendedor também tem dado pessoal coletado no autocadastro (nome, e-mail, telefone, senha — Clerk cuida da autenticação, `vendedor_telefone` fica em `captacoes`). Minimização, acesso por RLS, sem logar dado pessoal (placa mascarada em log quando necessário). Ver `LGPD.md`.
 10. **Cadastro de indicação nunca é INSERT puro.** `CapturaForm` chama a função `registrar_captacao_vendedor` (RPC, `supabase/schema.sql`) em vez de inserir direto: se a placa já existir vinda do ViaNuvem (`vendedor_id = "vianuvem"`), a função **atualiza** a linha pra virar indicação do vendedor (dispara `UPDATE` no Database Webhook — por isso ele precisa estar ligado pra Insert **e** Update); se a placa já for de outro vendedor de verdade, bloqueia. Nunca volte a fazer `supabase.from("captacoes").insert(...)` direto nesse formulário.
 
 ## Estrutura
 - `src/app/` — `layout.tsx` (ClerkProvider), `page.tsx` (redirect por papel / tela de login na raiz), `vendedor/` (client), `gestor/` (server), `api/vendedor/perfil/` (promove loja/telefone do autocadastro pra `publicMetadata`), `sign-in`/`sign-up` (redirecionam pra `/`, o login real é a raiz).
-- `src/components/` — `CapturaForm`, `GestorClient`, `AppHeader`, `Brand`, `login/` (`LoginScreen`, `SignInForm`, `SignUpForm`, `clerkError.ts`, `icons.tsx`), `vendedor/` (`IndicacaoHeader`).
+- `src/components/` — `CapturaForm`, `GestorClient`, `AppHeader`, `Brand` (estes dois só no gestor), `login/` (`LoginScreen`, `LoginHero`, `SignInForm`, `SignUpForm`, `clerkError.ts`, `icons.tsx`, `login.module.css`), `vendedor/` (`IndicacaoHeader`, `indicacao.module.css`).
 - `src/lib/` — `supabase.ts`, `supabase-server.ts`, `roles.ts` (claim `app_role`), `loja.ts` (loja/telefone do `publicMetadata`, `LOJAS_DISPONIVEIS`), `validation.ts`, `format.ts`, `types.ts` (mantenha `Captacao`/`NovaCaptacao` em sincronia com o schema).
 - `src/middleware.ts` — auth + autorização por papel.
 - `supabase/schema.sql` — tabela `captacoes` + índices + policies RLS + função `registrar_captacao_vendedor`.
@@ -39,13 +39,14 @@ Roteie a tarefa ao especialista, que aciona a skill correspondente:
 
 | Área | Agente | Skills |
 |------|--------|--------|
-| Auth / Clerk / integração | `auth-integration` | `clerk-supabase-auth` |
-| Banco / RLS / webhook | `supabase-db` | `supabase-rls` |
+| Auth / Clerk / login / autocadastro | `auth-integration` | `clerk-supabase-auth` |
+| Banco / RLS / RPC / webhooks / planilhas | `supabase-db` | `supabase-rls`, `sheets-webhook` |
 | Front-end / UI / validação | `frontend-ui` | `kinetic-harvest-ui`, `captacao-validation` |
 | Privacidade | `lgpd-reviewer` | `lgpd-data-handling` |
-| Docker / deploy / produção | `docker-devops` | `docker-nextjs` |
+| Docker / deploy / produção / disco | `docker-devops` | `docker-nextjs`, `vianuvem-import-job` |
+| Importação ViaNuvem (job/Playwright) | `vianuvem-importer` | `vianuvem-import-job` |
 
-Mudança que toca dado pessoal → sempre passe pelo `lgpd-reviewer`. Mudança de papel/claim → alinhe `auth-integration` + `supabase-db`.
+Mudança que toca dado pessoal → sempre passe pelo `lgpd-reviewer`. Mudança de papel/claim → alinhe `auth-integration` + `supabase-db`. Ao concluir qualquer mudança relevante, a skill `docs-sync` diz qual documento atualizar (vale para todos os agentes).
 
 ## Deploy (Docker)
 Produção via Docker: `Dockerfile` (multi-stage + `output: "standalone"`) + `docker-compose.yml`. Fluxo e o gotcha das `NEXT_PUBLIC_*` (build-time E runtime) estão em `DOCKER.md`. Segredos (`CLERK_SECRET_KEY`) só em runtime, nunca na imagem.

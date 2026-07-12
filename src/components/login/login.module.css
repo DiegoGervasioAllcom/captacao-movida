@@ -410,7 +410,7 @@
       radial-gradient(900px 600px at 50% 12%, #3a1147, #1b0a24 55%, #0b0710 100%),
       #0b0710;
   }
-  .bgPlate, .coin, .logos, .headline, .check, .bullet, .subtitle, .lembrete, .steps, .cardBorder {
+  .bgPlate, .tlArt, .coin, .logos, .headline, .check, .bullet, .subtitle, .lembrete, .steps, .cardBorder {
     display: none;
   }
   .card {
@@ -426,7 +426,9 @@
     border: 1px solid rgba(242, 106, 27, 0.4);
   }
   .avatar { width: 66px; height: auto; }
-  .cardTitle { font-size: 15px; margin-bottom: 20px; }
+  /* white-space: normal desfaz o nowrap do desktop - em 375px a linha
+     "indicações Supper Certo Seguros" não cabe e estourava o card. */
+  .cardTitle { font-size: 15px; margin-bottom: 20px; white-space: normal; }
   .field { border-radius: 12px; border-width: 2px; margin-bottom: 14px; }
   .field input { font-size: 16px; padding: 15px 16px; }
   .selectField select { font-size: 16px; padding: 15px 16px; background-position: right 14px center; }

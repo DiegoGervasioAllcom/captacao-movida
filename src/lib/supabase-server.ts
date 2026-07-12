@@ -7,7 +7,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 // Usado no painel do gestor, que e renderizado no servidor. Em vez de
 // window.Clerk, usamos auth().getToken() para obter o token de sessao do
 // Clerk e injeta-lo no Supabase. A RLS continua valendo: o gestor so ve
-// tudo porque o claim `role` = 'gestor'.
+// tudo porque o claim `app_role` = 'gestor'.
 // =========================================================================
 
 export async function createServerSupabaseClient(): Promise<SupabaseClient> {

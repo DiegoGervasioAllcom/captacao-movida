@@ -12,6 +12,6 @@ services:
     env_file:
       - .env
     volumes:
-      # Print de diagnostico quando o login falha (login-falhou-*.png) - sem
+      # Print de diagnostico quando o login falha (falha-login-*.png) - sem
       # isso, o arquivo seria perdido junto com o container (--rm).
       - ./debug:/app/debug
