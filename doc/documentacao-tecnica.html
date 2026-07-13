@@ -975,6 +975,14 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
       com esse texto (sem virar "Campinas Shopping Dom Pedro") — o apelido correspondente no mapa tem um hífen que
       a normalização não remove; um nome "bonito" quebraria o roteamento dessa loja específica.
     </p>
+    <p>
+      <strong>Atualização 11/07/2026:</strong> entrou a 21ª loja, <code>"Suzano"</code> (Seminovos Movida
+      Suzano), roteada para a planilha do <strong>Wesley</strong> — adicionada em <code>LOJAS_DISPONIVEIS</code>
+      e no <code>LOJA_PARA_PLANILHA</code> com os apelidos ViaNuvem <code>"Seminovos Movida Suzano"</code> e
+      <code>"Seminovos Movida Suzano - Sp"</code> (o <code>limparNomeLoja</code> só remove o prefixo
+      <code>"MOVIDA - "</code>, então o nome com "Seminovos" chega inteiro, como já acontecia com Praia Grande).
+      Exige reimplantação do Apps Script.
+    </p>
 
     <h3>Restrição de cadastro no Clerk ("New sign-ups are currently restricted")</h3>
     <p>

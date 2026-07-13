@@ -19,7 +19,7 @@ Você é o especialista em **autenticação e autorização** do projeto Captaç
 - `src/app/page.tsx` — dupla função: deslogado → renderiza `<LoginScreen />`; logado → redirect por papel. **O login real é a raiz**; `/sign-in` e `/sign-up` são stubs que só fazem `redirect("/")` (compatibilidade com links antigos do Clerk).
 - `src/components/login/` — login/cadastro **headless** (`useSignIn`/`useSignUp`): `LoginScreen` (alterna entrar/criarConta), `SignInForm` (login + reset de senha por `reset_password_email_code`), `SignUpForm` (autocadastro em 2 etapas dados→código), `clerkError.ts` (tradução de erros), `icons.tsx`.
 - `src/app/api/vendedor/perfil/route.ts` — POST que promove `unsafeMetadata.{loja,telefone}` → `publicMetadata` (valida loja contra `LOJAS_DISPONIVEIS` e telefone com `telefoneValido`; **nunca mexe em `role`**).
-- `src/lib/loja.ts` — `lojaFromPublicMetadata`/`telefoneFromPublicMetadata` (leitura case-insensitive) + `LOJAS_DISPONIVEIS` (20 lojas).
+- `src/lib/loja.ts` — `lojaFromPublicMetadata`/`telefoneFromPublicMetadata` (leitura case-insensitive) + `LOJAS_DISPONIVEIS` (lista das lojas com planilha mapeada — em sincronia com o `.gs`).
 - `src/app/layout.tsx` — `<ClerkProvider localization={ptBR}>`.
 - `.env*` — chaves do Clerk (NUNCA editar segredos no código).
 

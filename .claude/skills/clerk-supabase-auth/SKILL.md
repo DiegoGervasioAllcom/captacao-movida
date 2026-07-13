@@ -35,7 +35,7 @@ Supabase é **só banco**; quem autentica é o Clerk. A ligação é o **third-p
 3. Best-effort: `fetch("/api/vendedor/perfil", { method: "POST" }).catch(() => {})` — se falhar, um admin define loja/telefone à mão no painel.
 4. A rota (`src/app/api/vendedor/perfil/route.ts`) revalida no servidor: loja ∈ `LOJAS_DISPONIVEIS` (400 "Loja invalida."), `telefoneValido` (400 "Telefone invalido.") e grava `publicMetadata: { loja, telefone }` via `clerkClient`. **A rota nunca mexe em `role`** — sem papel o app já trata como vendedor.
 - `loja`/`telefone` são lidos de `user.publicMetadata` via `lojaFromPublicMetadata`/`telefoneFromPublicMetadata` (`src/lib/loja.ts`, busca de chave case-insensitive — admins digitam à mão no painel). Não há claim customizado pra eles.
-- `LOJAS_DISPONIVEIS` (20 lojas) deve espelhar `LOJA_PARA_PLANILHA` do Apps Script; "Campinas Shop Dom Pedro" é grafado assim de propósito (chave exata do mapa — não "embelezar").
+- `LOJAS_DISPONIVEIS` deve espelhar `LOJA_PARA_PLANILHA` do Apps Script (loja nova entra nos dois + reimplantação do Web App); "Campinas Shop Dom Pedro" é grafado assim de propósito (chave exata do mapa — não "embelezar").
 
 ## Variáveis de ambiente (nunca no código)
 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, e as 4 rotas do Clerk apontando pra `/`: `NEXT_PUBLIC_CLERK_SIGN_IN_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_URL`, `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL`, `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL`.

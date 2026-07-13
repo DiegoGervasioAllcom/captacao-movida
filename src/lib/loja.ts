@@ -33,7 +33,7 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
 }
 
 /**
- * As 20 lojas que ja tem planilha de destino mapeada em
+ * As 21 lojas que ja tem planilha de destino mapeada em
  * supabase/webhooks/captacoes-to-google-sheets.gs (LOJA_PARA_PLANILHA) -
  * contando uma vez cada loja real, ignorando os apelidos do ViaNuvem que
  * apontam pra essa mesma loja. Usada no select de loja do autocadastro do
@@ -60,6 +60,7 @@ export const LOJAS_DISPONIVEIS = [
   "São José dos Campos",
   "São Miguel Paulista",
   "São Paulo Radial Leste",
+  "Suzano",
   "Taubaté",
   "Timóteo Penteado",
   "Vila Carrão",
