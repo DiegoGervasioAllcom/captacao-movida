@@ -20,6 +20,16 @@ function goHome() {
 }
 
 export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
+  // Ativa a sessao recem-criada, promove loja/telefone (melhor esforco) e
+  // entra. Usado tanto quando o cadastro ja sai "complete" (verificacao de
+  // e-mail desligada no Clerk) quanto apos confirmar o codigo (ligada).
+  async function finalizarCadastro(sessionId: string | null) {
+    if (sessionId && setActive) await setActive({ session: sessionId });
+    // Melhor esforco: se falhar, um admin ainda pode definir loja/telefone manualmente.
+    await fetch("/api/vendedor/perfil", { method: "POST" }).catch(() => {});
+    goHome();
+  }
+
   const { isLoaded, signUp, setActive } = useSignUp();
   const [etapa, setEtapa] = useState<"dados" | "codigo">("dados");
   const [nomeCompleto, setNomeCompleto] = useState("");
@@ -43,13 +53,21 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
     setError(null);
     try {
       const [firstName, ...resto] = nomeCompleto.trim().split(/\s+/);
-      await signUp.create({
+      const res = await signUp.create({
         firstName,
         lastName: resto.join(" ") || undefined,
         emailAddress: email,
         password: senha,
         unsafeMetadata: { loja, telefone },
       });
+      // Verificacao de e-mail DESLIGADA no Clerk: o cadastro ja sai
+      // "complete" com sessao criada -> ativa e entra direto, sem etapa de
+      // codigo (chamar prepareEmailAddressVerification aqui daria erro).
+      if (res.status === "complete") {
+        await finalizarCadastro(res.createdSessionId);
+        return;
+      }
+      // Verificacao LIGADA: dispara o e-mail e vai para a etapa de codigo.
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setEtapa("codigo");
     } catch (err) {
@@ -70,10 +88,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
         setError("Não foi possível confirmar o código.");
         return;
       }
-      await setActive({ session: res.createdSessionId });
-      // Melhor esforço: se falhar, um admin ainda pode definir loja/telefone manualmente.
-      await fetch("/api/vendedor/perfil", { method: "POST" }).catch(() => {});
-      goHome();
+      await finalizarCadastro(res.createdSessionId);
     } catch (err) {
       setError(clerkError(err));
     } finally {

@@ -938,17 +938,32 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
     </p>
 
     <h3>Campos e fluxo</h3>
-    <p>Nome completo, e-mail, telefone, loja (select com as 20 lojas mapeadas — ver <code>LOJAS_DISPONIVEIS</code>
-      em <span class="file-ref">src/lib/loja.ts</span>) e senha (mínimo 8 caracteres). Fluxo em 2 etapas, igual ao
-      padrão que o Clerk exige para verificação de e-mail:</p>
+    <p>Nome completo, e-mail, telefone, loja (select com as lojas mapeadas — ver <code>LOJAS_DISPONIVEIS</code>
+      em <span class="file-ref">src/lib/loja.ts</span>) e senha (mínimo 8 caracteres). O fluxo <strong>se
+      adapta</strong> à configuração de verificação de e-mail do Clerk (ver a correção logo abaixo):</p>
     <div class="flow">
       <div class="flow-box"><strong>1. Preenche dados</strong><small>signUp.create + unsafeMetadata</small></div>
       <div class="flow-arrow">→</div>
-      <div class="flow-box"><strong>2. Código por e-mail</strong><small>signUp.prepareEmailAddressVerification</small></div>
+      <div class="flow-box"><strong>2. Código por e-mail</strong><small>só se verificação LIGADA</small></div>
       <div class="flow-arrow">→</div>
       <div class="flow-box"><strong>3. Confirma código</strong><small>attemptEmailAddressVerification</small></div>
       <div class="flow-arrow">→</div>
-      <div class="flow-box"><strong>4. Promove metadata</strong><small>/api/vendedor/perfil (servidor)</small></div>
+      <div class="flow-box"><strong>4. Ativa sessão + metadata</strong><small>setActive → /api/vendedor/perfil</small></div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-title">Correção 11/07/2026 — cadastro com verificação de e-mail desligada</span>
+      <p>
+        A versão original <em>sempre</em> chamava <code>signUp.prepareEmailAddressVerification()</code> logo após
+        o <code>create()</code> e ia para a tela de código. Ao desligar a verificação de e-mail no painel do
+        Clerk, o <code>create()</code> já retorna <code>status === "complete"</code> com a sessão criada, e o
+        <code>prepare…()</code> seguinte <strong>lança erro</strong> — resultado: a conta era criada mas o
+        <code>setActive()</code> nunca rodava, então o usuário via um erro e não entrava (ficava deslogado).
+        Corrigido em <span class="file-ref">src/components/login/SignUpForm.tsx</span> ramificando pelo
+        <code>status</code>: se vier <code>"complete"</code>, ativa a sessão e entra direto (helper
+        <code>finalizarCadastro</code>); senão, dispara o código como antes. Funciona com a verificação
+        <strong>ligada ou desligada</strong>, sem depender do estado do painel.
+      </p>
     </div>
 
     <h3>Por que loja/telefone não vão direto pro publicMetadata</h3>
