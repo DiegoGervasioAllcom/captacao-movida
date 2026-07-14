@@ -65,7 +65,7 @@ export default function SignInForm({ onCriarConta }: { onCriarConta: () => void 
   );
   const userField = (
     <div className={styles.field}>
-      <input type="text" autoComplete="username" aria-label="Usuário" placeholder="Usuário" required value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+      <input type="text" autoComplete="username" aria-label="Usuário" placeholder="E-mail" required value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
     </div>
   );
 
