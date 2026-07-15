@@ -28,3 +28,7 @@ yarn-error.log*
 # editor
 .vscode/
 .idea/
+
+# Relatorios gerados por scripts/usuarios-por-loja.mjs (dado pessoal - nao versionar)
+usuarios-por-loja*.csv
+usuarios-por-loja*.txt

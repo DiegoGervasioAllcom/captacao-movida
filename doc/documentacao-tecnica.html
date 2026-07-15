@@ -387,6 +387,7 @@
       <li><a href="#bugs2">Bugs adicionais e correções (2ª rodada)</a></li>
       <li><a href="#auditoria2">2ª auditoria de documentação</a></li>
       <li><a href="#agentes-skills">Atualização dos agentes/skills e limpeza de CSS</a></li>
+      <li><a href="#usuarios-por-loja">Utilitário: usuários por loja</a></li>
     </ol>
   </nav>
 
@@ -1250,6 +1251,38 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
           ("Indicação" com acento).</td>
       </tr>
     </table>
+    </div>
+  </section>
+
+  <section id="usuarios-por-loja">
+    <div class="section-head"><span class="section-num">19</span><h2>Utilitário: usuários por loja</h2></div>
+    <p>
+      O Clerk guarda a loja de cada vendedor em <code>publicMetadata.loja</code> e <strong>não permite filtrar
+      por metadata</strong> — nem no painel, nem na query da API. Para responder "quantos vendedores por loja e
+      quem são", o script standalone <span class="file-ref">scripts/usuarios-por-loja.mjs</span> lista todos os
+      usuários pela API do Clerk (paginando de 100 em 100 com <code>@clerk/backend</code>) e agrupa por loja no
+      nosso lado, reusando a mesma leitura case-insensitive de <span class="file-ref">src/lib/loja.ts</span>.
+    </p>
+    <div class="flow">
+      <div class="flow-box"><strong>1. Lista usuários</strong><small>clerk.users.getUserList (paginado)</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>2. Agrupa por loja</strong><small>publicMetadata.loja (case-insensitive)</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>3. Relatório + CSV</strong><small>stdout + usuarios-por-loja.csv</small></div>
+    </div>
+    <p>Rodar (a <code>CLERK_SECRET_KEY</code> vem do <code>.env</code>, nunca do código):</p>
+    <pre><code>npm run usuarios-por-loja
+# ou, para a instância de produção:
+node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
+    <div class="callout info">
+      <span class="callout-title">LGPD</span>
+      <p>
+        É dado pessoal de <strong>colaborador</strong> (nome do vendedor + loja) — operação de gestor/admin. O
+        script de propósito <strong>não</strong> imprime nem exporta e-mail, telefone ou senha (minimização). O
+        CSV gerado contém nomes: está no <span class="file-ref">.gitignore</span>
+        (<code>usuarios-por-loja*.csv</code>/<code>.txt</code>) para não ser versionado, e não deve ser
+        compartilhado fora da lista de gestores.
+      </p>
     </div>
   </section>
 

@@ -9,6 +9,7 @@ npm run dev        # desenvolvimento (localhost:3000)
 npm run build      # build de produção
 npm run typecheck  # tsc --noEmit  (rode após mudanças de tipos)
 npm run lint       # ESLint
+npm run usuarios-por-loja  # relatório: quantos vendedores por loja + nomes (lê o Clerk; gera CSV)
 ```
 
 ## Regras de ouro (NÃO viole)
@@ -32,6 +33,7 @@ npm run lint       # ESLint
 - `supabase/schema.sql` — tabela `captacoes` + índices + policies RLS + função `registrar_captacao_vendedor`.
 - `supabase/webhooks/captacoes-to-google-sheets.gs` — destino Google Sheets do Database Webhook, precisa estar configurado para Insert **e** Update.
 - `vianuvem-import/` — job standalone (fora do app, imagem Docker própria baseada em `mcr.microsoft.com/playwright`) que importa leads do ViaNuvem/Unico Auto de hora em hora via cron (`docker compose run --rm importer`). Ver `vianuvem-import/README.md`.
+- `scripts/` — utilitários administrativos standalone. `usuarios-por-loja.mjs`: lista os vendedores por loja (lê o Clerk pela `CLERK_SECRET_KEY`, agrupa por `publicMetadata.loja` porque o Clerk não filtra por metadata; imprime relatório + gera CSV gitignorado). Rode com `npm run usuarios-por-loja`.
 - `doc/documentacao-tecnica.html` — histórico técnico detalhado do que foi construído (login, cadastro, ViaNuvem, bugs reais e correções).
 
 ## Agentes e skills deste projeto (`.claude/`)

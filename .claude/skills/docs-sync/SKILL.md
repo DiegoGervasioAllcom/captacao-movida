@@ -26,7 +26,7 @@ Este projeto tem cultura de documentação forte: **mudança relevante sem doc a
 
 ## Convenções do `doc/documentacao-tecnica.html`
 É o histórico técnico detalhado (o que foi construído, becos sem saída, bugs reais). Arquivo grande — **não leia inteiro**: localize por `grep` o id da seção ou o TOC.
-- Estrutura: `<nav class="toc">` com `<ol>` de links → `<section id="kebab-case">` numeradas em sequência (hoje 18: `visao-geral`, `login`, `vendedor`, `sheets`, `infra`, `vianuvem`, `deploy`, `bugs`, `lgpd`, `auditoria`, `pendencias`, `referencias`, `autocadastro`, `canal-reivindicacao`, `sheets-update`, `bugs2`, `auditoria2`, `agentes-skills`).
+- Estrutura: `<nav class="toc">` com `<ol>` de links → `<section id="kebab-case">` numeradas em sequência (hoje 19: `visao-geral`, `login`, `vendedor`, `sheets`, `infra`, `vianuvem`, `deploy`, `bugs`, `lgpd`, `auditoria`, `pendencias`, `referencias`, `autocadastro`, `canal-reivindicacao`, `sheets-update`, `bugs2`, `auditoria2`, `agentes-skills`, `usuarios-por-loja`).
 - Seção nova = adicionar o `<section id="...">` **e** a entrada correspondente no TOC, com o próximo número da sequência.
 - Badges de status em tabelas: `<span class="status ok">` e `<span class="status corrigido">` (siga as classes existentes; não invente cor inline).
 - Pendências vivem na seção `pendencias` (lista `<li>`); quando resolver uma, remova o item e ajuste a linha da tabela de auditoria para `status corrigido`.

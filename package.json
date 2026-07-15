@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "usuarios-por-loja": "node --env-file=.env scripts/usuarios-por-loja.mjs"
   },
   "dependencies": {
     "@clerk/localizations": "^3.37.7",
