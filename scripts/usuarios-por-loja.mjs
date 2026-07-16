@@ -2,16 +2,25 @@
 // Relatorio: quantos usuarios (vendedores) por loja + o nome de cada um.
 //
 // O Clerk NAO permite filtrar por publicMetadata no painel nem na query da
-// API - por isso listamos TODOS os usuarios e agrupamos por `loja` aqui,
-// usando a mesma leitura case-insensitive de src/lib/loja.ts.
+// API - por isso listamos TODOS os usuarios (API REST do Clerk) e agrupamos
+// por `loja` aqui, usando a mesma leitura case-insensitive de src/lib/loja.ts.
+//
+// SEM DEPENDENCIAS: usa fetch nativo do Node (>=18) e a API REST do Clerk.
+// Nao precisa de node_modules - roda em qualquer Node, inclusive dentro de
+// um container Docker no servidor (que nao tem Node no host).
 //
 // COMO RODAR (a chave vem do .env, nunca no codigo):
-//   node --env-file=.env scripts/usuarios-por-loja.mjs
-//   npm run usuarios-por-loja
 //
-// Alem de imprimir o relatorio, gera um CSV (separador ";" + BOM, igual ao
-// export do painel do gestor) em usuarios-por-loja.csv - abre direto no
-// Excel. O nome do arquivo pode ser trocado com --out=<caminho>.
+//   # Na sua maquina (tem Node):
+//   npm run usuarios-por-loja
+//   # ou, apontando para producao:
+//   node --env-file=.env.production scripts/usuarios-por-loja.mjs
+//
+//   # No servidor (SEM Node no host, mas com Docker) - reusa a imagem do app,
+//   # roda como seu usuario pra poder gravar o CSV na pasta montada:
+//   docker run --rm --user $(id -u):$(id -g) \
+//     -v "$PWD":/app -w /app captacao-movida:latest \
+//     node --env-file=.env scripts/usuarios-por-loja.mjs
 //
 // LGPD: isto le dado pessoal de COLABORADOR (nome do vendedor + loja). E uma
 // operacao de gestor/admin. De proposito NAO imprime/exporta e-mail, telefone
@@ -20,19 +29,32 @@
 // nao compartilhe fora da lista de gestores). Ja esta no .gitignore.
 // =========================================================================
 import { writeFileSync } from "node:fs";
-import { createClerkClient } from "@clerk/backend";
 
 const secretKey = process.env.CLERK_SECRET_KEY;
 if (!secretKey) {
   console.error(
     "Falta CLERK_SECRET_KEY no ambiente.\n" +
       "Rode assim (a chave vem do .env):\n" +
-      "  node --env-file=.env scripts/usuarios-por-loja.mjs",
+      "  npm run usuarios-por-loja\n" +
+      "  # ou: node --env-file=.env scripts/usuarios-por-loja.mjs",
   );
   process.exit(1);
 }
 
-const clerk = createClerkClient({ secretKey });
+const API = "https://api.clerk.com/v1";
+
+async function clerkGet(caminho) {
+  const res = await fetch(`${API}${caminho}`, {
+    headers: { Authorization: `Bearer ${secretKey}` },
+  });
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => "");
+    throw new Error(
+      `Clerk API respondeu ${res.status} em ${caminho}. ${corpo.slice(0, 300)}`,
+    );
+  }
+  return res.json();
+}
 
 // Mesma logica de lojaFromPublicMetadata (src/lib/loja.ts): a chave "loja"
 // e procurada ignorando maiusculas/minusculas porque quem cadastra no painel
@@ -44,33 +66,32 @@ function lojaDoMetadata(metadata) {
   return typeof valor === "string" && valor.trim() ? valor.trim() : null;
 }
 
+// A API REST usa snake_case (first_name, email_addresses[].email_address...).
 function nomeDoUsuario(u) {
-  const nome = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+  const nome = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
   if (nome) return nome;
-  // fallback quando o vendedor nao preencheu o nome
-  return u.emailAddresses?.[0]?.emailAddress || u.username || u.id;
+  const emails = u.email_addresses || [];
+  const primaria =
+    emails.find((e) => e.id === u.primary_email_address_id) || emails[0];
+  return primaria?.email_address || u.username || u.id;
 }
 
 const LIMITE = 100;
 let offset = 0;
-let total = Infinity;
 const usuarios = [];
-
-while (offset < total) {
-  const { data, totalCount } = await clerk.users.getUserList({
-    limit: LIMITE,
-    offset,
-  });
-  total = totalCount;
-  if (!data.length) break;
-  usuarios.push(...data);
-  offset += data.length;
+// Pagina ate a API devolver uma pagina menor que o limite (fim da lista).
+while (true) {
+  const pagina = await clerkGet(`/users?limit=${LIMITE}&offset=${offset}`);
+  if (!Array.isArray(pagina) || pagina.length === 0) break;
+  usuarios.push(...pagina);
+  if (pagina.length < LIMITE) break;
+  offset += LIMITE;
 }
 
 const porLoja = new Map();
 const semLoja = [];
 for (const u of usuarios) {
-  const loja = lojaDoMetadata(u.publicMetadata);
+  const loja = lojaDoMetadata(u.public_metadata);
   const nome = nomeDoUsuario(u);
   if (!loja) {
     semLoja.push(nome);
