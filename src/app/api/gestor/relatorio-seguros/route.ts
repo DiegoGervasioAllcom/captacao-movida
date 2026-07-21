@@ -294,7 +294,7 @@ export async function GET(req: NextRequest) {
     // "Resultado" que so conta status_venda = "Emitida".
     supabase
       .from("seguros_indicacao_movida")
-      .select("placa, loja, seguradora, data_venda, premio_liquido")
+      .select("placa, loja, seguradora, data_venda, status_venda, premio_liquido")
       .gte("data_venda", inicio)
       .lt("data_venda", fim)
       .order("data_venda", { ascending: true }),
@@ -421,10 +421,12 @@ export async function GET(req: NextRequest) {
     { width: 8.5 }, // Loja
     { width: 19 }, // Tipo Seguro
     { width: 16 }, // Data Venda
+    { width: 14 }, // Status da Venda
     { width: 19.5 }, // Valor R$ Seguro
   ];
+  const CABECALHOS_BASE = ["Placa", "Loja", "Tipo Seguro", "Data Venda", "Status da Venda", "Valor R$ Seguro"];
   const linhaCabecalhoBase = wsBase.getRow(1);
-  ["Placa", "Loja", "Tipo Seguro", "Data Venda", "Valor R$ Seguro"].forEach((texto, i) => {
+  CABECALHOS_BASE.forEach((texto, i) => {
     const cel = linhaCabecalhoBase.getCell(1 + i);
     cel.value = texto;
     estilizarCelula(cel, { bold: true, fill: CINZA_CABECALHO, align: "center", border: "thin" });
@@ -436,6 +438,7 @@ export async function GET(req: NextRequest) {
       s.loja ?? "",
       s.seguradora ?? "",
       s.data_venda ? formatarDataBr(s.data_venda) : "",
+      s.status_venda ?? "",
       s.premio_liquido ?? "",
     ];
     valores.forEach((v, j) => {
@@ -444,7 +447,7 @@ export async function GET(req: NextRequest) {
       estilizarCelula(cel, {
         align: "center",
         border: "thin",
-        numFmt: j === 4 ? "#,##0.00" : undefined,
+        numFmt: j === 5 ? "#,##0.00" : undefined,
       });
     });
   });

@@ -1336,9 +1336,10 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
     <p>
       O <code>.xlsx</code> baixado tem <strong>2 abas</strong>, no mesmo layout da planilha modelo do time de
       seguros: <strong>Resultado</strong> (o pivot acima) e <strong>Base</strong> (detalhe bruto — uma linha por
-      seguro sincronizado no mês, <em>incluindo</em> Cancelada/Recusada/Pendente, não só Emitida). Na aba Base, a
-      coluna "Tipo Seguro" usa o valor de <code>Seguradora</code> — os dados reais não têm um campo de "tipo"
-      separado da seguradora.
+      seguro sincronizado no mês, <em>incluindo</em> Cancelada/Recusada/Pendente, não só Emitida). Colunas da aba
+      Base: Placa, Loja, Tipo Seguro, Data Venda, <strong>Status da Venda</strong>, Valor R$ Seguro — nessa ordem
+      (Status da Venda logo depois de Data Venda). A coluna "Tipo Seguro" usa o valor de <code>Seguradora</code> —
+      os dados reais não têm um campo de "tipo" separado da seguradora.
     </p>
     <div class="callout warn">
       <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>
