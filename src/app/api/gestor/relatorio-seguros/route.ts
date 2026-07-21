@@ -121,6 +121,22 @@ const CINZA_CABECALHO = "FFBFBFBF";
 const CINZA_TOTAL = "FFA6A6A6";
 const ROXO_SN_MOVIDA = "FF7030A0";
 
+// Cores de "semaforo" pro Status da Venda na aba Base - mesmo esquema dos
+// estilos nativos "Bom/Ruim/Neutro" do Excel (fundo claro + fonte escura da
+// mesma cor), pra ficar reconhecivel visualmente sem precisar ler o texto.
+function corDoStatusVenda(status: string | null): { fill: string; fontColor: string } | null {
+  switch (status) {
+    case "Emitida":
+      return { fill: "FFC6EFCE", fontColor: "FF006100" }; // verde
+    case "Recusada":
+      return { fill: "FFFFC7CE", fontColor: "FF9C0006" }; // vermelho
+    case "Pendente":
+      return { fill: "FFFFEB9C", fontColor: "FF9C6500" }; // amarelo
+    default:
+      return null; // "Cancelada" e outros ficam sem cor especial
+  }
+}
+
 function estilizarCelula(
   cel: ExcelJS.Cell,
   opts: {
@@ -431,6 +447,7 @@ export async function GET(req: NextRequest) {
     cel.value = texto;
     estilizarCelula(cel, { bold: true, fill: CINZA_CABECALHO, align: "center", border: "thin" });
   });
+  const COL_STATUS_VENDA = 4; // indice (0-based) da coluna "Status da Venda" em `valores` abaixo
   (segurosBaseDoMes ?? []).forEach((s, i) => {
     const linha = wsBase.getRow(2 + i);
     const valores = [
@@ -444,10 +461,13 @@ export async function GET(req: NextRequest) {
     valores.forEach((v, j) => {
       const cel = linha.getCell(1 + j);
       cel.value = v;
+      const corStatus = j === COL_STATUS_VENDA ? corDoStatusVenda(s.status_venda) : null;
       estilizarCelula(cel, {
         align: "center",
         border: "thin",
         numFmt: j === 5 ? "#,##0.00" : undefined,
+        fill: corStatus?.fill,
+        fontColor: corStatus?.fontColor,
       });
     });
   });
