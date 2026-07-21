@@ -77,6 +77,30 @@
 // timestamp, mensagem e o id tecnico do registro, nunca nome/telefone/
 // placa. Isso evita criar uma segunda copia de dado pessoal sem controle
 // de acesso/retencao (regra de ouro 9 do CLAUDE.md).
+//
+// ENDPOINT `doGet` - leitura para o relatorio de seguros por loja: o time
+// de seguros preenche manualmente, nas mesmas 3 planilhas, colunas alem do
+// contrato A-J documentado acima (OBS, DATA DA VENDA, STATUS DA VENDA,
+// PREMIO LIQUIDO, SEGURADORA, MOTIVO). O `doGet` le essas colunas por NOME
+// do cabecalho (linha 1, normalizado com a mesma `normalizarTexto` usada
+// para loja - sem assumir letra fixa, porque a 3a planilha (wesley) pode
+// nao ter essas colunas na mesma posicao das outras duas) e devolve tudo
+// em JSON, para a rota do painel do gestor (`api/gestor/relatorio-seguros`,
+// fora deste arquivo) sincronizar com a tabela `seguros_indicacao_movida` do
+// Supabase.
+// Protegido por um script property SEPARADO do WEBHOOK_SECRET do `doPost`:
+// `SEGUROS_READ_SECRET` (segredo de leitura isolado do segredo de escrita -
+// gere com `openssl rand -hex 16`, do mesmo jeito que o outro). Passos
+// adicionais de implantacao (depois dos 7 acima):
+//   8. Icone de engrenagem > Propriedades do script > adicione
+//      SEGUROS_READ_SECRET com um valor aleatorio novo (NAO reaproveite o
+//      WEBHOOK_SECRET).
+//   9. Depois de colar este arquivo atualizado no editor, republique:
+//      Implantar > Gerenciar implantacoes > editar a implantacao ativa >
+//      Nova versao > Implantar (mantem a mesma URL do `/exec`). So salvar o
+//      arquivo NAO basta - sem republicar, o `doGet` novo nao fica no ar.
+//   10. A rota do painel do gestor chama
+//       `<mesma URL do /exec>?secret=<SEGUROS_READ_SECRET>` via GET.
 // =========================================================================
 
 const SHEET_NAME = 'Página1';
@@ -213,6 +237,105 @@ function doPost(e) {
     registrarErro(String(err && err.stack || err), e);
     return respostaJson({ ok: false });
   }
+}
+
+// Endpoint de LEITURA do relatorio de seguros (chamado pela rota do painel
+// do gestor, fora deste arquivo - ver comentario de cabecalho). Protegido
+// por um script property SEPARADO do WEBHOOK_SECRET do `doPost`.
+function doGet(e) {
+  try {
+    const segredoEsperado = PropertiesService.getScriptProperties().getProperty('SEGUROS_READ_SECRET');
+    const segredoRecebido = e.parameter && e.parameter.secret;
+    if (!segredoEsperado || segredoRecebido !== segredoEsperado) {
+      registrarErro('doGet: segredo invalido ou ausente (SEGUROS_READ_SECRET)', e);
+      return respostaJson({ ok: false });
+    }
+
+    const registros = [];
+    Object.keys(PLANILHAS).forEach(function (chave) {
+      const aba = getAba(PLANILHAS[chave], SHEET_NAME);
+      registros.push.apply(registros, lerSegurosDaAba(aba));
+    });
+
+    return respostaJson({ ok: true, registros: registros });
+  } catch (err) {
+    registrarErro('doGet: ' + String(err && err.stack || err), e);
+    return respostaJson({ ok: false });
+  }
+}
+
+// Le a aba "Pagina1" de UMA planilha e devolve as linhas com STATUS DA
+// VENDA preenchido (Emitida/Cancelada/Recusada/Pendente - mantem historico
+// completo; o filtro "so Emitida conta" fica por conta de quem monta o
+// relatorio, nao deste endpoint). As colunas de seguro (OBS, DATA DA VENDA,
+// STATUS DA VENDA, PREMIO LIQUIDO, SEGURADORA, MOTIVO) sao achadas pelo
+// NOME do cabecalho da linha 1 - NUNCA por letra fixa - porque so 2 das 3
+// planilhas foram conferidas ao vivo; a 3a pode ter posicoes diferentes.
+// LOJA e PLACA tambem sao achadas por nome, com fallback pras posicoes
+// fixas D/I (indices 3/8, 0-based) so porque essas duas ja fazem parte do
+// contrato original A-J documentado no topo deste arquivo.
+function lerSegurosDaAba(aba) {
+  const ultimaColuna = aba.getLastColumn();
+  // Os cabecalhos das colunas de seguro (K-P) sao lidos da LINHA 1 - repare
+  // que isso e diferente do cabecalho A-J documentado no topo deste arquivo
+  // (linha 2). Confirmado ao vivo nas planilhas reais: a linha 1 e onde o
+  // time de seguros escreveu os nomes dessas colunas extras.
+  const cabecalhos = aba.getRange(1, 1, 1, ultimaColuna).getValues()[0];
+
+  const colLoja = acharColunaPorNome(cabecalhos, ['loja'], 3);
+  const colPlaca = acharColunaPorNome(cabecalhos, ['placa'], 8);
+  const colObs = acharColunaPorNome(cabecalhos, ['obs']);
+  const colDataVenda = acharColunaPorNome(cabecalhos, ['data da venda']);
+  const colStatusVenda = acharColunaPorNome(cabecalhos, ['status da venda']);
+  const colPremioLiquido = acharColunaPorNome(cabecalhos, ['premio liquido']);
+  const colSeguradora = acharColunaPorNome(cabecalhos, ['seguradora']);
+  const colMotivo = acharColunaPorNome(cabecalhos, ['motivo']);
+
+  const ultimaLinha = aba.getLastRow();
+  if (ultimaLinha < 2 || colStatusVenda === -1) return [];
+
+  // NAO usar linha 3 aqui (diferente de encontrarLinhaPorPlaca/doPost, que
+  // assumem cabecalho na linha 2 e dados a partir da linha 3): conferido AO
+  // VIVO nas planilhas reais que a linha 1 e o cabecalho de verdade e os
+  // dados comecam na linha 2. Ou seja, o comentario historico no topo deste
+  // arquivo ("linha 2 = cabecalho, dados a partir da linha 3") esta
+  // desatualizado/errado em relacao aos dados reais - possivel bug latente
+  // em encontrarLinhaPorPlaca (UPDATE nunca acharia uma placa que esteja na
+  // linha 2), mas corrigir isso e fora do escopo deste endpoint novo; so
+  // reportado, nao alterado aqui.
+  const dados = aba.getRange(2, 1, ultimaLinha - 1, ultimaColuna).getValues();
+  const registros = [];
+  dados.forEach(function (linha) {
+    const statusVenda = linha[colStatusVenda];
+    if (statusVenda === '' || statusVenda == null) return;
+
+    registros.push({
+      placa: colPlaca !== -1 ? linha[colPlaca] : '',
+      loja: colLoja !== -1 ? linha[colLoja] : '',
+      obs: colObs !== -1 ? linha[colObs] : '',
+      dataVenda: colDataVenda !== -1 ? linha[colDataVenda] : '',
+      statusVenda: statusVenda,
+      premioLiquido: colPremioLiquido !== -1 ? linha[colPremioLiquido] : '',
+      seguradora: colSeguradora !== -1 ? linha[colSeguradora] : '',
+      motivo: colMotivo !== -1 ? linha[colMotivo] : '',
+    });
+  });
+  return registros;
+}
+
+// Acha o indice (0-based) de uma coluna pelo NOME do cabecalho, comparando
+// por igualdade EXATA do texto normalizado (normalizarTexto - mesma funcao
+// usada pra loja) - nunca por "contem", pra nao casar substring por
+// acidente (ex.: cabecalho "DATA" da coluna A batendo com "DATA DA VENDA").
+// `indiceFixo` (opcional, 0-based) e usado como fallback SO pra LOJA/PLACA -
+// ver comentario de lerSegurosDaAba.
+function acharColunaPorNome(cabecalhos, nomesCandidatos, indiceFixo) {
+  const normalizados = cabecalhos.map(normalizarTexto);
+  for (let i = 0; i < nomesCandidatos.length; i++) {
+    const idx = normalizados.indexOf(nomesCandidatos[i]);
+    if (idx !== -1) return idx;
+  }
+  return typeof indiceFixo === 'number' ? indiceFixo : -1;
 }
 
 // Procura pela placa na coluna I (indice 9) a partir da linha 3 (dados

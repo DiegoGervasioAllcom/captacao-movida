@@ -48,12 +48,53 @@ function exportarCsv(linhas: Captacao[]) {
   URL.revokeObjectURL(url);
 }
 
+/** "YYYY-MM" do mes atual, valor default do seletor de relatorio de seguros. */
+function mesAtual(): string {
+  const hoje = new Date();
+  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function GestorClient({
   captacoes,
 }: {
   captacoes: Captacao[];
 }) {
   const [busca, setBusca] = useState("");
+  const [mesRelatorio, setMesRelatorio] = useState(mesAtual);
+  const [baixandoRelatorio, setBaixandoRelatorio] = useState(false);
+  const [erroRelatorio, setErroRelatorio] = useState("");
+
+  // Baixa o .xlsx do relatorio de seguros do mes escolhido (cruza
+  // `seguros_indicacao_movida` com `captacoes` no servidor - ver
+  // src/app/api/gestor/relatorio-seguros).
+  async function baixarRelatorioSeguros() {
+    setBaixandoRelatorio(true);
+    setErroRelatorio("");
+    try {
+      const resposta = await fetch(
+        `/api/gestor/relatorio-seguros?mes=${mesRelatorio}`
+      );
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => null);
+        throw new Error(corpo?.error || "Falha ao gerar o relatorio.");
+      }
+      const blob = await resposta.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-seguros-${mesRelatorio}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErroRelatorio(
+        err instanceof Error ? err.message : "Falha ao gerar o relatorio."
+      );
+    } finally {
+      setBaixandoRelatorio(false);
+    }
+  }
 
   // Filtra por nome do cliente, placa ou vendedor.
   const filtradas = useMemo(() => {
@@ -156,6 +197,39 @@ export default function GestorClient({
         <p className="cm-muted" style={{ marginTop: 16, fontSize: 13 }}>
           Exibindo {filtradas.length} de {captacoes.length} captacoes
         </p>
+      </section>
+
+      <section className="cm-card">
+        <h2 className="cm-card-title">Relatorio de seguros por loja</h2>
+        <p className="cm-muted" style={{ fontSize: 13 }}>
+          Cruza os seguros fechados (planilhas do time de seguros) com as
+          indicacoes dos vendedores, por loja, no mes escolhido.
+        </p>
+        <div className="cm-row">
+          <label htmlFor="mes-relatorio-seguros" className="cm-sr-only">
+            Mes do relatorio
+          </label>
+          <input
+            id="mes-relatorio-seguros"
+            className="cm-search"
+            type="month"
+            value={mesRelatorio}
+            onChange={(e) => setMesRelatorio(e.target.value)}
+          />
+          <button
+            type="button"
+            className="cm-btn cm-btn-ghost cm-btn-sm"
+            onClick={baixarRelatorioSeguros}
+            disabled={baixandoRelatorio}
+          >
+            {baixandoRelatorio ? "Gerando..." : "⭳ Baixar relatorio do mes"}
+          </button>
+        </div>
+        {erroRelatorio && (
+          <p role="alert" className="cm-alert cm-alert-err">
+            {erroRelatorio}
+          </p>
+        )}
       </section>
     </>
   );

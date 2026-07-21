@@ -30,9 +30,13 @@ Não são coletados dados sensíveis (art. 5º, II). O formulário deve coletar 
 
 **Dados do próprio vendedor (autocadastro):** desde que o portal ganhou cadastro self-service (tela de login, aba "Criar conta"), o vendedor informa nome, e-mail, telefone e senha diretamente. Isso é dado de **colaborador**, tratado sob um regime distinto do dado do cliente na tabela 2 acima — a base legal aqui é a relação de trabalho/parceria com a loja, não consentimento do cliente final. E-mail e senha ficam inteiramente sob custódia do Clerk (autenticação); nome e loja ficam em `publicMetadata`; telefone é o único campo do vendedor replicado em `captacoes` (`vendedor_telefone`), porque acompanha cada indicação registrada.
 
+**Tabela `seguros_indicacao_movida` (relatório mensal de seguros por loja):** guarda **placa** (dado pessoal — pode identificar o titular do veículo/comprador do seguro), loja, status da venda, prêmio, seguradora e dois campos de texto livre (`obs`, `motivo`) preenchidos manualmente pelo time de seguros nas planilhas de origem. Por design, a tabela **não** guarda nome/telefone/CPF do cliente (minimização, regra de ouro 9 do `CLAUDE.md`) — mas como `obs`/`motivo` são texto livre digitado por humanos que lidam com o cliente real, **podem conter dado pessoal incidental** (ex.: alguém colar um nome ou telefone ali por engano) que este documento não controla na origem. Ver origem em 4.3 e o fluxo de entrada em 7.
+
 ## 3. Finalidade
 
 Os dados são tratados para **registro e gestão de leads comerciais** (captação de clientes) e seu encaminhamento ao sistema de destino (webhook) para continuidade do atendimento/venda. É vedado o uso para finalidades incompatíveis com essa (art. 6º, I).
+
+**Finalidade adicional (tabela `seguros_indicacao_movida`):** medir performance comercial de venda de seguro por loja, cruzando cada seguro fechado com a indicação de vendedor correspondente (se houver) — usado para o relatório mensal do painel do gestor. É um uso compatível com a relação comercial já existente entre controlador e loja (mesma base de dados, mesma placa, finalidade de gestão comercial por loja), mas **distinto** do registro de lead original — ver 4.3 para a base legal desta origem específica.
 
 ## 4. Base legal
 
@@ -62,6 +66,16 @@ Isso é uma origem de dados **fundamentalmente diferente** do formulário do ven
 
 Quando um vendedor cadastra "Nova Indicação" pelo portal usando uma placa que já existe em `captacoes` com `vendedor_id = "vianuvem"`, a função `registrar_captacao_vendedor` (`supabase/schema.sql`) **atualiza** essa linha em vez de criar uma nova: `vendedor_id`/`vendedor_nome`/`vendedor_telefone` passam a ser os do vendedor que cadastrou, e `canal` muda para `"Indicação"`. Na prática, isso muda quem enxerga o registro pela RLS — de "só o gestor" para "aquele vendedor + o gestor". Se a placa já pertencer a **outro** vendedor de verdade (não ao `"vianuvem"`), a função bloqueia a operação e nada muda — um vendedor nunca sobrescreve o registro de um colega.
 
+### 4.3 Origem adicional: planilha do time de seguros
+
+A tabela `seguros_indicacao_movida` recebe a placa (e dados de venda de seguro associados) a partir de colunas preenchidas manualmente pelo time de seguros nas mesmas 3 planilhas Google Sheets que já recebem as captações (seção 7). A rota `src/app/api/gestor/relatorio-seguros` sincroniza essas colunas para o Supabase sempre que o gestor gera o relatório mensal.
+
+Assim como a origem ViaNuvem (4.1), esta é uma origem **estruturalmente diferente** do formulário do vendedor: o titular do seguro (comprador) **pode nunca ter gerado um lead em `captacoes`** — é justamente esse cruzamento por placa que o relatório calcula (quantos seguros fecharam "com" ou "sem" indicação). Ou seja, `seguros_indicacao_movida` pode conter dados pessoais (placa) de pessoas que nunca interagiram com a Captação Movida.
+
+**Base legal aplicável a esta origem:** legítimo interesse (art. 7º, IX), fundamentado no interesse comercial legítimo do controlador em medir a performance de vendas de seguro por loja — mesma lógica de gestão comercial já aplicada a `captacoes`. **Não se aplica aqui a base de consentimento do titular** para com a Captação Movida especificamente: a relação (e o eventual consentimento) do titular é com a loja/seguradora no contexto da venda do seguro, não com este sistema de relatório interno.
+
+> **Pendência a resolver com o jurídico/DPO do controlador:** mesma recomendação da seção 4.1 — documentar o teste de proporcionalidade (LIA) para este legítimo interesse.
+
 ## 5. Direitos do titular
 
 O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimização/bloqueio/eliminação, portabilidade, informação sobre compartilhamento e revogação do consentimento. O controlador deve disponibilizar um canal (ex.: e-mail do DPO) e um procedimento para atender essas solicitações dentro dos prazos legais.
@@ -71,7 +85,7 @@ O titular pode solicitar (art. 18): confirmação e acesso, correção, anonimiz
 - **Autenticação** via Clerk (e-mail/senha, recuperação de senha).
 - **Autorização por papel**, aplicada em duas camadas:
   - **Aplicação:** middleware do Next.js restringe rotas (vendedor x gestor).
-  - **Banco (defesa principal):** Row Level Security (RLS) no Supabase. O vendedor só lê/insere as **próprias** captações (`auth.jwt()->>'sub' = vendedor_id`); o gestor lê todas (`app_role = 'gestor'`). Sem token válido do Clerk, o acesso é negado.
+  - **Banco (defesa principal):** Row Level Security (RLS) no Supabase. O vendedor só lê/insere as **próprias** captações (`auth.jwt()->>'sub' = vendedor_id`); o gestor lê todas (`app_role = 'gestor'`). Sem token válido do Clerk, o acesso é negado. A tabela `seguros_indicacao_movida` segue o mesmo princípio de forma mais restrita: **todas** as policies (select/insert/update) exigem `app_role = 'gestor'` — não há policy de vendedor, porque este dado não pertence a um vendedor específico. O middleware (`src/middleware.ts`) reforça isso também na camada de aplicação: `/api/gestor(.*)` exige papel gestor, do mesmo jeito que `/gestor(.*)`.
 - **Princípio do menor privilégio:** usuários sem papel definido são tratados como vendedor.
 - **Segredos** (chaves, URL do webhook) ficam exclusivamente em variáveis de ambiente, nunca no código ou no repositório.
 
@@ -84,6 +98,8 @@ Os dados são encaminhados a um ou mais **destinos configurados no Database Webh
   - Nenhuma das 3 planilhas tem RLS: qualquer pessoa com acesso de leitura no Google Workspace vê os dados de **todos** os vendedores daquela planilha (várias lojas por planilha), equivalente ao nível de acesso de um gestor. O compartilhamento de cada planilha deve ser restrito à mesma lista de pessoas autorizadas como "gestor" na aplicação.
   - O Web App do Apps Script aceita POST de "qualquer pessoa" (é assim que o Supabase consegue chamá-lo); a única proteção é um segredo em query string, que deve ser tratado como credencial de produção (nunca no código, rotação se vazar — regra de ouro nº 5 do `CLAUDE.md`).
   - Não há confirmação de entrega: falhas nesse destino (incluindo loja sem planilha mapeada) não ficam visíveis ao Supabase, o que pode gerar divergência entre a fonte da verdade (`captacoes`) e as planilhas.
+
+**Fluxo de ENTRADA adicional — planilhas do time de seguros → Supabase (`seguros_indicacao_movida`):** diferente dos destinos acima (que só recebem dados), este é um fluxo no sentido contrário: a rota `src/app/api/gestor/relatorio-seguros` lê, via um novo endpoint `doGet` no mesmo Apps Script (`captacoes-to-google-sheets.gs`), as colunas de venda de seguro (placa, loja, status da venda, prêmio, seguradora, obs, motivo) que o time de seguros preenche manualmente nas mesmas 3 planilhas, e grava (`upsert`) o resultado em `seguros_indicacao_movida`. Protegido por um segredo próprio (`SEGUROS_READ_SECRET`), **separado** do `WEBHOOK_SECRET` usado pelo `doPost` — mesma lógica de "segredo em query string = credencial de produção" da nota acima, agora também aplicada a este segredo (nunca em log, nunca no código — regra de ouro nº 5 do `CLAUDE.md`). Este fluxo deve constar do registro de operações (art. 37) como uma origem de dado pessoal (placa) distinta do formulário do vendedor — ver base legal em 4.3.
 
 ## 8. Segurança da informação
 
@@ -100,6 +116,7 @@ Os dados são encaminhados a um ou mais **destinos configurados no Database Webh
 - A rotina de expurgo/eliminação deve alcançar **todas as cópias** dos dados pessoais, incluindo as 3 planilhas do Google Sheets alimentadas pelo webhook secundário (seção 7) — eliminar apenas no Supabase não é suficiente para atender a um pedido de exclusão do titular (art. 18, IV).
 - **Captações importadas do ViaNuvem** (`vendedor_id = "vianuvem"`) devem ter um prazo de retenção reavaliado periodicamente: como o controlador não tem visibilidade de quando o processo de financiamento original termina no ViaNuvem, não é possível hoje calcular automaticamente "enquanto durar a negociação" para esses registros. Até que essa integração exista, trate o prazo de forma conservadora (revisão manual periódica) e não superior ao prazo aplicado às captações do formulário.
 - **CPF**, quando presente, deve ter prazo de retenção igual ou mais curto que os demais campos, dado que seu uso hoje é preencher a planilha gerencial (seção 7) e não há atendimento contínuo baseado nele — a placa (não o CPF) é a chave usada para deduplicação.
+- **Tabela `seguros_indicacao_movida`:** a sincronização (`upsert ... on conflict (placa)`, disparada a cada relatório) só faz `INSERT`/`UPDATE`, **nunca `DELETE`**. Se uma linha for removida da planilha de origem (por engano, por conter dado incorreto, ou a pedido do titular), a cópia em `seguros_indicacao_movida` **não é removida automaticamente** e fica órfã indefinidamente — quebra a mesma simetria de expurgo já exigida acima para `captacoes` + planilhas. Até que exista uma rotina de sincronização de exclusões, trate `seguros_indicacao_movida` na mesma rotina manual de expurgo periódico de `captacoes`, e inclua-a explicitamente em qualquer atendimento a pedido de exclusão do titular (art. 18, IV) que envolva uma placa.
 
 ## 10. Registro de operações e incidentes
 

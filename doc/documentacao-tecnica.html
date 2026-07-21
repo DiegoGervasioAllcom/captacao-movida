@@ -388,6 +388,7 @@
       <li><a href="#auditoria2">2ª auditoria de documentação</a></li>
       <li><a href="#agentes-skills">Atualização dos agentes/skills e limpeza de CSS</a></li>
       <li><a href="#usuarios-por-loja">Utilitário: usuários por loja</a></li>
+      <li><a href="#relatorio-seguros">Relatório mensal de seguros por loja</a></li>
     </ol>
   </nav>
 
@@ -1282,6 +1283,80 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
         CSV gerado contém nomes: está no <span class="file-ref">.gitignore</span>
         (<code>usuarios-por-loja*.csv</code>/<code>.txt</code>) para não ser versionado, e não deve ser
         compartilhado fora da lista de gestores.
+      </p>
+    </div>
+  </section>
+
+  <section id="relatorio-seguros">
+    <div class="section-head"><span class="section-num">20</span><h2>Relatório mensal de seguros por loja</h2></div>
+    <p>
+      O time de seguros fecha vendas de seguro (placa, status da venda, prêmio, seguradora) e, até esta feature,
+      só existia registro disso nas próprias planilhas do Google Sheets — sem cruzamento automático com quem
+      indicou o cliente. O gestor precisava montar esse cruzamento manualmente no Excel. Esta feature traz o dado
+      de seguro de volta para o Supabase e gera, sob demanda, um <code>.xlsx</code> mensal por loja direto do
+      painel do gestor.
+    </p>
+    <div class="flow">
+      <div class="flow-box"><strong>1. Planilhas</strong><small>time de seguros preenche colunas K-P manualmente</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>2. Apps Script <code>doGet</code></strong><small>lê por nome de cabeçalho, protegido por SEGUROS_READ_SECRET</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>3. Rota do gestor</strong><small>upsert em `seguros_indicacao_movida` + cruza com `captacoes` por placa</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>4. Download .xlsx</strong><small>botão no GestorClient</small></div>
+    </div>
+    <p>
+      As colunas de seguro já existiam nas 3 planilhas antes desta feature (preenchidas manualmente pelo time de
+      seguros) — não precisou criar coluna nenhuma. Confirmado ao vivo em 2 das 3 planilhas reais:
+      <code>OBS</code>, <code>DATA DA VENDA</code>, <code>STATUS DA VENDA</code> (<code>Emitida</code> /
+      <code>Cancelada</code> / <code>Recusada</code> / <code>Pendente</code>), <code>PREMIO LIQUIDO</code>,
+      <code>SEGURADORA</code>, <code>MOTIVO</code>. O <code>doGet</code> em
+      <span class="file-ref">captacoes-to-google-sheets.gs</span> resolve essas colunas pelo <strong>nome do
+      cabeçalho</strong> (comparação exata, normalizada — nunca por letra fixa nem "contém"), porque a 3ª planilha
+      não foi conferida ao vivo e pode ter posições diferentes das outras duas.
+    </p>
+    <p>
+      Só <code>STATUS DA VENDA = "Emitida"</code> conta como seguro fechado nos números do relatório
+      (Quant./Total R$); <code>Cancelada</code>/<code>Recusada</code>/<code>Pendente</code> ficam sincronizadas em
+      <span class="file-ref">seguros_indicacao_movida</span> como histórico. O cruzamento "com/sem indicação" é feito só pela
+      <strong>placa</strong> (existe ou não em <span class="file-ref">captacoes</span>, sem filtro de data — a
+      indicação pode ter acontecido em mês anterior ao fechamento do seguro); "Indicados" por loja, por outro
+      lado, conta captações criadas no mês escolhido.
+    </p>
+    <table>
+      <thead><tr><th>Coluna do relatório</th><th>Origem</th></tr></thead>
+      <tbody>
+        <tr><td>Quant.</td><td>Seguros <code>Emitida</code> da loja no mês</td></tr>
+        <tr><td>Indicados</td><td>Captações da loja criadas no mês</td></tr>
+        <tr><td>Seguros fechados sem indicação</td><td>Seguros <code>Emitida</code> cuja placa NÃO está em <code>captacoes</code></td></tr>
+        <tr><td>Seguros fechados com indicação</td><td>Complemento da anterior</td></tr>
+        <tr><td>Total R$</td><td>Soma de <code>premio_liquido</code> (só <code>Emitida</code>)</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn">
+      <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>
+      <p>
+        Ao conferir as planilhas reais para desenhar esta feature, o cabeçalho de fato está na
+        <strong>linha 1</strong> (dados a partir da linha 2) — diferente do comentário histórico no topo de
+        <span class="file-ref">captacoes-to-google-sheets.gs</span>, que documenta "linha 2 = cabeçalho, dados a
+        partir da linha 3". A função <code>encontrarLinhaPorPlaca</code> (usada pelo <code>doPost</code> no
+        caminho de UPDATE) busca a partir da linha 3, então **nunca encontraria** uma placa que esteja na linha 2
+        — um UPDATE (reivindicação de lead) na primeira linha de dados de qualquer uma das 3 planilhas
+        provavelmente cai silenciosamente no log de erro em vez de atualizar. O <code>doGet</code> novo desta
+        feature já foi escrito lendo a partir da linha correta (2); o bug em <code>encontrarLinhaPorPlaca</code> é
+        pré-existente e ficou só registrado aqui — corrigir é fora do escopo desta mudança.
+      </p>
+    </div>
+    <div class="callout info">
+      <span class="callout-title">LGPD</span>
+      <p>
+        <span class="file-ref">seguros_indicacao_movida</span> guarda placa (dado pessoal) + loja/status/prêmio/seguradora, sem
+        nome/telefone/CPF do cliente — mas <code>obs</code>/<code>motivo</code> são texto livre digitado pelo
+        time de seguros e podem conter dado pessoal incidental. RLS gestor-only (select/insert/update), sem
+        policy de vendedor. O titular do seguro pode nunca ter passado por <span class="file-ref">captacoes</span>
+        — mesma situação estrutural da origem ViaNuvem. Ver <span class="file-ref">LGPD.md</span> seções 2, 3,
+        4.3, 6, 7 e 9 para o detalhe completo (inclui uma pendência de retenção: a sincronização só faz
+        insert/update, nunca delete — uma remoção na planilha de origem não se propaga ao Supabase).
       </p>
     </div>
   </section>

@@ -67,3 +67,79 @@ export const LOJAS_DISPONIVEIS = [
   "Vila Ema",
   "Vila Guilherme",
 ] as const;
+
+/**
+ * Mesma normalizacao usada em captacoes-to-google-sheets.gs (normalizarTexto)
+ * e vianuvem-import/lib/normalizar.mjs (limparNomeLoja): remove acentos,
+ * baixa a caixa e tira um eventual prefixo "movida -". Duplicada aqui de
+ * proposito - as 3 runtimes (Apps Script, job standalone, Next.js) nao
+ * compartilham codigo entre si.
+ */
+function normalizarTextoLoja(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/^movida\s*-?\s*/, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Alias (normalizado) -> nome oficial em LOJAS_DISPONIVEIS. Mesma lista de
+ * apelidos de LOJA_PARA_PLANILHA em captacoes-to-google-sheets.gs, so que
+ * mapeando pro nome oficial da loja em vez da planilha de destino - usada
+ * pra reconciliar o texto livre de loja que vem da coluna D das planilhas
+ * (preenchido pelo time, com grafias variadas) com o relatorio de seguros
+ * por loja. SE UMA LOJA NOVA APARECER OU UM APELIDO NOVO, mantenha os dois
+ * mapas em sincronia.
+ */
+const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]> = (() => {
+  const mapa: Record<string, string> = {
+    Americana: "Americana",
+    "Campinas Amoreiras": "Campinas Amoreiras",
+    "Campinas Itapura": "Campinas Itapura",
+    "Campinas Orosimbo": "Campinas Orosimbo",
+    "Campinas Shop Dom Pedro": "Campinas Shop Dom Pedro",
+    "Campinas - Shopping Dom Pedro": "Campinas Shop Dom Pedro",
+    "Seminovos Movida Campinas Shopping Dom Pedro": "Campinas Shop Dom Pedro",
+    Jundiai: "Jundiaí",
+    "Praia Grande": "Praia Grande",
+    "Seminovos Movida Praia Grande - Sp": "Praia Grande",
+    Santos: "Santos",
+    "Sao Jose dos Campos": "São José dos Campos",
+    Suzano: "Suzano",
+    "Seminovos Movida Suzano": "Suzano",
+    "Seminovos Movida Suzano - Sp": "Suzano",
+    Taubate: "Taubaté",
+    "Guarulhos Timoteo Penteado": "Timóteo Penteado",
+    "Timoteo Penteado": "Timóteo Penteado",
+    "Mogi das Cruzes": "Mogi das Cruzes",
+    Aricanduva: "Aricanduva",
+    "Itaim Paulista": "Itaim Paulista",
+    Penha: "Penha",
+    "Radial Leste": "São Paulo Radial Leste",
+    "Sao Paulo Radial Leste": "São Paulo Radial Leste",
+    "Sao Miguel": "São Miguel Paulista",
+    "Sao Miguel Paulista": "São Miguel Paulista",
+    "Vila Carrao": "Vila Carrão",
+    "Vila Ema": "Vila Ema",
+    "Vila Guilherme": "Vila Guilherme",
+  };
+  const normalizado: Record<string, (typeof LOJAS_DISPONIVEIS)[number]> = {};
+  for (const [chave, valor] of Object.entries(mapa)) {
+    normalizado[normalizarTextoLoja(chave)] = valor as (typeof LOJAS_DISPONIVEIS)[number];
+  }
+  return normalizado;
+})();
+
+/**
+ * Resolve um texto livre de loja (ex.: "MOVIDA - VILA CARRÃO", vindo da
+ * coluna D das planilhas de seguro) para o nome oficial em LOJAS_DISPONIVEIS,
+ * tolerando as variacoes de grafia ja conhecidas. Retorna null se nao
+ * reconhecer (loja nova ou grafia ainda nao mapeada).
+ */
+export function lojaOficial(nomeLivre: string | null | undefined): string | null {
+  if (!nomeLivre) return null;
+  return LOJA_ALIAS_PARA_OFICIAL[normalizarTextoLoja(nomeLivre)] ?? null;
+}

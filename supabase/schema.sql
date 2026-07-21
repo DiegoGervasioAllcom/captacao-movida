@@ -157,3 +157,61 @@ grant execute on function registrar_captacao_vendedor to authenticated;
 -- e nova - copie e rode o bloco inteiro dela tambem em producao. E
 -- seguro rodar de novo no futuro (`create or replace function`).
 -- =========================================================================
+
+-- =========================================================================
+-- Tabela de vendas de seguro, sincronizada a partir das 3 planilhas Google
+-- Sheets que o Database Webhook ja alimenta (ver captacoes-to-google-sheets.gs
+-- e o endpoint `doGet` la dentro). Usada para cruzar com `captacoes` no
+-- relatorio mensal por loja do painel do gestor (quantos seguros fecharam
+-- com indicacao e quantos sem).
+create table seguros_indicacao_movida (
+  id uuid primary key default gen_random_uuid(),
+  -- Unica: a sincronizacao roda toda vez que o gestor pede o relatorio, e
+  -- usa `upsert ... on conflict (placa)` para atualizar a linha em vez de
+  -- duplicar (a mesma placa pode aparecer de novo com um status ou premio
+  -- atualizado nas planilhas).
+  placa text not null unique,
+  loja text,
+  obs text,
+  data_venda date,
+  -- Valores vistos nas planilhas: Emitida | Cancelada | Recusada | Pendente.
+  -- So "Emitida" conta no relatorio (Cancelada/Recusada/Pendente ficam no
+  -- banco como historico) - esse filtro e responsabilidade de quem monta o
+  -- relatorio, nao desta tabela.
+  status_venda text,
+  premio_liquido numeric(12,2),
+  seguradora text,
+  motivo text,
+  updated_at timestamptz not null default now()
+);
+
+-- Indice para o lookup por placa (upsert da sincronizacao e cruzamento com
+-- `captacoes`, que ja tem indice por placa).
+create index on seguros_indicacao_movida (placa);
+
+-- Habilita RLS. Sem policy, ninguem acessa.
+alter table seguros_indicacao_movida enable row level security;
+
+-- As 3 policies abaixo sao TODAS "app_role = gestor" - de proposito nao ha
+-- policy por vendedor_id aqui. `seguros_indicacao_movida` nao e dado do
+-- vendedor: e um dado agregado de seguro (placa, loja, valor, status),
+-- sincronizado de fora (planilhas), e so o painel do gestor le/grava.
+-- Insert/update (nao so select) porque quem sincroniza e a propria rota da
+-- area do gestor, autenticada como gestor via Clerk - sem service_role no
+-- app (diferente do job vianuvem-import, que roda fora do app com a
+-- service_role key).
+create policy "gestor le tudo" on seguros_indicacao_movida for select
+  using ( (auth.jwt()->>'app_role') = 'gestor' );
+create policy "gestor mantem" on seguros_indicacao_movida for insert
+  with check ( (auth.jwt()->>'app_role') = 'gestor' );
+create policy "gestor atualiza" on seguros_indicacao_movida for update
+  using ( (auth.jwt()->>'app_role') = 'gestor' );
+
+-- =========================================================================
+-- Migracao: se a tabela `seguros_indicacao_movida` ainda NAO existir em
+-- producao, rode o `create table seguros_indicacao_movida` (com o indice e
+-- as 3 policies) acima inteiro - e
+-- tudo novo, nao ha `alter table` para rodar em cima de uma versao anterior.
+-- Se um dia esta tabela ja existir e precisar de coluna nova, documente o
+-- `alter table` aqui do mesmo jeito que e feito para `captacoes` acima.
+-- =========================================================================

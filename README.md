@@ -190,6 +190,21 @@ Além do webhook principal configurado acima, este projeto também usa (em paral
 
 > ⚠️ Esse segundo webhook (Google Sheets) precisa estar configurado para os eventos **Insert E Update** (marque as duas caixas), diferente do webhook principal acima. O evento Update é disparado quando um vendedor "reivindica" pelo portal um lead que já existia (ex.: importado do ViaNuvem) — ver `registrar_captacao_vendedor` em `supabase/schema.sql`.
 
+### Relatório de seguros por loja (endpoint `doGet`)
+
+O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint `doGet`, usado pelo painel do gestor para gerar o relatório mensal de seguros: lê, nas mesmas 3 planilhas, as colunas que o time de seguros preenche manualmente (OBS, DATA DA VENDA, STATUS DA VENDA, PREMIO LIQUIDO, SEGURADORA, MOTIVO) e devolve tudo em JSON para a rota `src/app/api/gestor/relatorio-seguros`, que sincroniza com a tabela `seguros_indicacao_movida` no Supabase e cruza com `captacoes` (por placa) para saber quantos seguros fecharam com ou sem indicação de vendedor.
+
+1. Cole o `.gs` atualizado (com o `doGet`) no mesmo projeto Apps Script do webhook principal e **republique**: Implantar > Gerenciar implantações > editar a implantação ativa > Nova versão > Implantar. Só salvar o arquivo não basta — sem republicar, o `doGet` novo não fica no ar (mantém a mesma URL `/exec`).
+2. Ícone de engrenagem > Propriedades do script > adicione `SEGUROS_READ_SECRET` com um valor aleatório novo (**não** reaproveite o `WEBHOOK_SECRET` — são segredos separados, um de escrita e um de leitura).
+3. No `.env`, preencha:
+   ```
+   SEGUROS_SHEETS_URL=<mesma URL /exec do passo 1>
+   SEGUROS_READ_SECRET=<mesmo valor do passo 2>
+   ```
+4. No painel do gestor, o botão "Baixar relatório do mês" chama `GET /api/gestor/relatorio-seguros?mes=YYYY-MM` (rota protegida — só `app_role = gestor`) e baixa um `.xlsx` no layout da planilha de referência do time de seguros.
+
+> Só conta como "seguro fechado" a linha com `STATUS DA VENDA = "Emitida"`. `Cancelada`/`Recusada`/`Pendente` ficam sincronizadas na tabela `seguros_indicacao_movida` como histórico, mas não entram nos números do relatório. Ver `LGPD.md` seção 4.3 para a base legal desta origem de dado pessoal (placa).
+
 ---
 
 ## 5. Definir papéis dos usuários
@@ -235,12 +250,14 @@ captacao-movida/
 │  │  ├─ sign-in/[[...sign-in]]/page.tsx
 │  │  ├─ sign-up/[[...sign-up]]/page.tsx
 │  │  ├─ vendedor/page.tsx           # formulário + minhas captações
-│  │  └─ gestor/page.tsx             # tabela (SSR) + busca + CSV
+│  │  ├─ gestor/page.tsx             # tabela (SSR) + busca + CSV
+│  │  └─ api/gestor/
+│  │     └─ relatorio-seguros/route.ts  # .xlsx mensal (seguros x captações por loja)
 │  ├─ components/
 │  │  ├─ Brand.tsx
 │  │  ├─ AppHeader.tsx
 │  │  ├─ CapturaForm.tsx             # validação, máscaras, INSERT no Supabase
-│  │  ├─ GestorClient.tsx            # busca + exportação CSV
+│  │  ├─ GestorClient.tsx            # busca + exportação CSV + relatório de seguros
 │  │  ├─ login/                      # tela de login (LoginScreen, SignInForm)
 │  │  └─ vendedor/                   # tela "Nova Indicação" componentizada
 │  ├─ lib/
@@ -249,13 +266,13 @@ captacao-movida/
 │  │  ├─ validation.ts               # telefone (10/11), placa (Mercosul/antiga)
 │  │  ├─ format.ts                   # formatação de data/hora
 │  │  ├─ roles.ts                    # utilitários de papel (claim app_role)
-│  │  ├─ loja.ts                     # le publicMetadata.loja (case-insensitive)
+│  │  ├─ loja.ts                     # le publicMetadata.loja + LOJAS_DISPONIVEIS + lojaOficial()
 │  │  └─ types.ts                    # tipos compartilhados
 │  └─ middleware.ts                  # auth + autorização por papel
 ├─ supabase/
-│  ├─ schema.sql                     # tabela + índices + policies RLS
+│  ├─ schema.sql                     # tabelas (captacoes, seguros_indicacao_movida) + índices + policies RLS
 │  └─ webhooks/
-│     └─ captacoes-to-google-sheets.gs  # Apps Script: destino Google Sheets
+│     └─ captacoes-to-google-sheets.gs  # Apps Script: destino Google Sheets (doPost) + doGet (leitura p/ relatório de seguros)
 ├─ vianuvem-import/                  # job standalone (Docker próprio) que importa
 │                                     # leads do ViaNuvem/Unico Auto de hora em
 │                                     # hora — ver vianuvem-import/README.md

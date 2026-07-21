@@ -18,7 +18,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
 ]);
 
-const isGestorRoute = createRouteMatcher(["/gestor(.*)"]);
+const isGestorRoute = createRouteMatcher(["/gestor(.*)", "/api/gestor(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
   // Rotas publicas passam direto.
