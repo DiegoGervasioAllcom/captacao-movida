@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatarDataHora } from "@/lib/format";
 import type { Captacao } from "@/lib/types";
 
 // =========================================================================
-// Componente cliente do painel do gestor: metricas, busca e exportacao CSV.
+// Componente cliente do painel do gestor: metricas, busca, paginacao e
+// exportacao CSV.
+//
+// A busca e a paginacao acontecem no SERVIDOR (ver src/app/gestor/page.tsx):
+// `captacoes` aqui e so a pagina atual, ja filtrada pelo banco. Digitar na
+// busca (com debounce) ou clicar em Anterior/Proxima navega pra uma nova
+// URL (`?busca=...&pagina=...`), que re-renderiza o Server Component com a
+// consulta certa - por isso nao ha mais filtro em memoria aqui.
 // =========================================================================
 
 /** Escapa um valor para uma celula CSV (aspas + virgula + quebra de linha). */
@@ -18,14 +26,8 @@ function celulaCsv(valor: string): string {
 }
 
 /** Gera e baixa um arquivo CSV com as captacoes (separador ";" p/ Excel BR). */
-function exportarCsv(linhas: Captacao[]) {
-  const cabecalho = [
-    "Cliente",
-    "Telefone",
-    "Placa",
-    "Vendedor",
-    "Data/Hora",
-  ];
+function baixarCsv(linhas: Captacao[]) {
+  const cabecalho = ["Cliente", "Telefone", "Placa", "Vendedor", "Data/Hora"];
   const corpo = linhas.map((c) =>
     [
       celulaCsv(c.nome_cliente),
@@ -56,13 +58,78 @@ function mesAtual(): string {
 
 export default function GestorClient({
   captacoes,
+  busca,
+  pagina,
+  tamanhoPagina,
+  totalRegistros,
+  totalCaptacoes,
+  captacoesHoje,
+  vendedoresAtivos,
 }: {
   captacoes: Captacao[];
+  busca: string;
+  pagina: number;
+  tamanhoPagina: number;
+  totalRegistros: number;
+  totalCaptacoes: number;
+  captacoesHoje: number;
+  vendedoresAtivos: number;
 }) {
-  const [busca, setBusca] = useState("");
+  const router = useRouter();
+  const [textoBusca, setTextoBusca] = useState(busca);
+  const [exportando, setExportando] = useState(false);
+  const [erroExportacao, setErroExportacao] = useState("");
+
   const [mesRelatorio, setMesRelatorio] = useState(mesAtual);
   const [baixandoRelatorio, setBaixandoRelatorio] = useState(false);
   const [erroRelatorio, setErroRelatorio] = useState("");
+
+  // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
+  useEffect(() => setTextoBusca(busca), [busca]);
+
+  // Debounce: so navega 400ms depois de parar de digitar, e reseta pra pagina 1.
+  useEffect(() => {
+    if (textoBusca === busca) return;
+    const timer = setTimeout(() => {
+      const qs = new URLSearchParams();
+      if (textoBusca) qs.set("busca", textoBusca);
+      qs.set("pagina", "1");
+      router.push(`/gestor?${qs.toString()}`);
+    }, 400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textoBusca]);
+
+  function irParaPagina(novaPagina: number) {
+    const qs = new URLSearchParams();
+    if (busca) qs.set("busca", busca);
+    qs.set("pagina", String(novaPagina));
+    router.push(`/gestor?${qs.toString()}`);
+  }
+
+  // Exporta TODAS as captacoes que batem com a busca atual (nao so a pagina
+  // exibida) - por isso busca de novo no servidor em vez de usar `captacoes`.
+  async function exportarCsv() {
+    setExportando(true);
+    setErroExportacao("");
+    try {
+      const qs = new URLSearchParams();
+      if (busca) qs.set("busca", busca);
+      const resposta = await fetch(`/api/gestor/captacoes-export?${qs.toString()}`);
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => null);
+        throw new Error(corpo?.error || "Falha ao exportar as captacoes.");
+      }
+      const corpo = (await resposta.json()) as { captacoes: Captacao[] };
+      baixarCsv(corpo.captacoes);
+    } catch (err) {
+      setErroExportacao(
+        err instanceof Error ? err.message : "Falha ao exportar as captacoes."
+      );
+    } finally {
+      setExportando(false);
+    }
+  }
 
   // Baixa o .xlsx do relatorio de seguros do mes escolhido (cruza
   // `seguros_indicacao_movida` com `captacoes` no servidor - ver
@@ -96,39 +163,22 @@ export default function GestorClient({
     }
   }
 
-  // Filtra por nome do cliente, placa ou vendedor.
-  const filtradas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return captacoes;
-    return captacoes.filter((c) =>
-      [c.nome_cliente, c.placa, c.vendedor_nome ?? "", c.telefone]
-        .join(" ")
-        .toLowerCase()
-        .includes(termo)
-    );
-  }, [busca, captacoes]);
-
-  // Metricas simples.
-  const hoje = new Date().toDateString();
-  const totalHoje = captacoes.filter(
-    (c) => new Date(c.created_at).toDateString() === hoje
-  ).length;
-  const vendedores = new Set(captacoes.map((c) => c.vendedor_id)).size;
+  const totalPaginas = Math.max(1, Math.ceil(totalRegistros / tamanhoPagina));
 
   return (
     <>
       <div className="cm-stats">
         <div className="cm-stat">
           <div className="cm-stat-label">Total de captacoes</div>
-          <div className="cm-stat-value">{captacoes.length}</div>
+          <div className="cm-stat-value">{totalCaptacoes}</div>
         </div>
         <div className="cm-stat">
           <div className="cm-stat-label">Captacoes de hoje</div>
-          <div className="cm-stat-value">{totalHoje}</div>
+          <div className="cm-stat-value">{captacoesHoje}</div>
         </div>
         <div className="cm-stat">
           <div className="cm-stat-label">Vendedores ativos</div>
-          <div className="cm-stat-value">{vendedores}</div>
+          <div className="cm-stat-value">{vendedoresAtivos}</div>
         </div>
       </div>
 
@@ -149,21 +199,27 @@ export default function GestorClient({
               className="cm-search"
               type="search"
               placeholder="Filtrar por nome, placa ou vendedor..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
+              value={textoBusca}
+              onChange={(e) => setTextoBusca(e.target.value)}
             />
             <button
               type="button"
               className="cm-btn cm-btn-ghost cm-btn-sm"
-              onClick={() => exportarCsv(filtradas)}
-              disabled={filtradas.length === 0}
+              onClick={exportarCsv}
+              disabled={exportando || totalRegistros === 0}
             >
-              ⭳ Exportar CSV
+              {exportando ? "Exportando..." : "⭳ Exportar CSV"}
             </button>
           </div>
         </div>
 
-        {filtradas.length === 0 ? (
+        {erroExportacao && (
+          <p role="alert" className="cm-alert cm-alert-err">
+            {erroExportacao}
+          </p>
+        )}
+
+        {captacoes.length === 0 ? (
           <p className="cm-empty">Nenhuma captacao encontrada.</p>
         ) : (
           <div className="cm-table-scroll">
@@ -178,7 +234,7 @@ export default function GestorClient({
                 </tr>
               </thead>
               <tbody>
-                {filtradas.map((c) => (
+                {captacoes.map((c) => (
                   <tr key={c.id}>
                     <td>{c.nome_cliente}</td>
                     <td>{c.telefone}</td>
@@ -194,9 +250,29 @@ export default function GestorClient({
           </div>
         )}
 
-        <p className="cm-muted" style={{ marginTop: 16, fontSize: 13 }}>
-          Exibindo {filtradas.length} de {captacoes.length} captacoes
-        </p>
+        <div className="cm-row" style={{ marginTop: 16, justifyContent: "space-between" }}>
+          <p className="cm-muted" style={{ fontSize: 13, margin: 0 }}>
+            Pagina {pagina} de {totalPaginas} — {totalRegistros} captacoes no total
+          </p>
+          <div className="cm-row">
+            <button
+              type="button"
+              className="cm-btn cm-btn-ghost cm-btn-sm"
+              onClick={() => irParaPagina(pagina - 1)}
+              disabled={pagina <= 1}
+            >
+              ← Anterior
+            </button>
+            <button
+              type="button"
+              className="cm-btn cm-btn-ghost cm-btn-sm"
+              onClick={() => irParaPagina(pagina + 1)}
+              disabled={pagina >= totalPaginas}
+            >
+              Proxima →
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="cm-card">
