@@ -35,13 +35,28 @@ interface RegistroSheet {
 }
 
 /**
- * Tolera os formatos inconsistentes vistos na planilha real (ex.:
- * "15/07/2026" e "08/0726", sem uma das barras). Retorna null (loga e pula
- * a linha, nao quebra o processamento) quando nao consegue interpretar.
+ * A coluna "DATA DA VENDA" e formatada como data na planilha - o Apps Script
+ * serializa isso (JSON.stringify de um objeto Date) como ISO 8601, ex.:
+ * "2026-07-16T03:00:00.000Z" (NAO como texto "16/07/2026"). Tambem tolera o
+ * caso raro de a celula ainda ser texto solto tipo "15/07/2026" ou "08/0726"
+ * (sem uma das barras - visto ao vivo numa das planilhas). Retorna null
+ * (loga e pula a linha, nao quebra o processamento) quando nao consegue
+ * interpretar, ou quando o ano vem claramente corrompido (ex.: celula mal
+ * formatada gerando ano "0726" em vez de "2026").
  */
 function parseDataVenda(bruto: string | undefined): string | null {
   if (!bruto) return null;
-  const digitos = String(bruto).replace(/\D/g, "");
+  const s = String(bruto).trim();
+  if (!s) return null;
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+  if (iso) {
+    const [, yyyy, mm, dd] = iso;
+    if (Number(yyyy) < 2000 || Number(yyyy) > 2100) return null;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const digitos = s.replace(/\D/g, "");
   let dd: string, mm: string, yyyy: string;
   if (digitos.length === 8) {
     dd = digitos.slice(0, 2);
