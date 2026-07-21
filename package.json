@@ -15,10 +15,10 @@
     "@clerk/localizations": "^3.37.7",
     "@clerk/nextjs": "^6.12.0",
     "@supabase/supabase-js": "^2.45.0",
+    "exceljs": "^4.4.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "xlsx": "^0.18.5"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

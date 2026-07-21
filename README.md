@@ -201,7 +201,7 @@ O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint
    SEGUROS_SHEETS_URL=<mesma URL /exec do passo 1>
    SEGUROS_READ_SECRET=<mesmo valor do passo 2>
    ```
-4. No painel do gestor, o botão "Baixar relatório do mês" chama `GET /api/gestor/relatorio-seguros?mes=YYYY-MM` (rota protegida — só `app_role = gestor`) e baixa um `.xlsx` no layout da planilha de referência do time de seguros.
+4. No painel do gestor, o botão "Baixar relatório do mês" chama `GET /api/gestor/relatorio-seguros?mes=YYYY-MM` (rota protegida — só `app_role = gestor`) e baixa um `.xlsx` com 2 abas, no layout da planilha de referência do time de seguros: **Resultado** (pivot por loja) e **Base** (detalhe bruto — todas as tentativas de venda do mês, não só as `Emitida`; "Tipo Seguro" nessa aba usa o campo `Seguradora`, já que os dados reais não têm um campo de "tipo" separado).
 
 > Só conta como "seguro fechado" a linha com `STATUS DA VENDA = "Emitida"`. `Cancelada`/`Recusada`/`Pendente` ficam sincronizadas na tabela `seguros_indicacao_movida` como histórico, mas não entram nos números do relatório. Ver `LGPD.md` seção 4.3 para a base legal desta origem de dado pessoal (placa).
 

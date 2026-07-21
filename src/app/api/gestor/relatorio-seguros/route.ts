@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { roleFromClaims } from "@/lib/roles";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { normalizarPlaca } from "@/lib/validation";
@@ -84,6 +84,12 @@ function parsePremioLiquido(bruto: string | number | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** "YYYY-MM-DD" (formato que o Supabase devolve p/ coluna `date`) -> "dd/MM/yyyy". */
+function formatarDataBr(isoDate: string): string {
+  const [yyyy, mm, dd] = isoDate.split("-");
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function mesAtualPadrao(): string {
   const hoje = new Date();
   return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
@@ -104,6 +110,93 @@ const NOMES_MES = [
   "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
   "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO",
 ];
+
+// ---- Estilos extraidos da planilha modelo (MOVIDA 2026 SUPPER CERTO
+// SEGUROS) que o time de seguros enviou, pra o .xlsx gerado ter o mesmo
+// visual. As cores de cinza sao a aproximacao RGB dos tons de tema do Excel
+// ("Branco, Fundo 1, Mais Escuro 15/25/35%") usados no arquivo original; o
+// roxo da faixa "SN MOVIDA" e a cor exata (RGB puro) do arquivo original.
+const CINZA_TITULO = "FFD9D9D9";
+const CINZA_CABECALHO = "FFBFBFBF";
+const CINZA_TOTAL = "FFA6A6A6";
+const ROXO_SN_MOVIDA = "FF7030A0";
+
+function estilizarCelula(
+  cel: ExcelJS.Cell,
+  opts: {
+    bold?: boolean;
+    fill?: string;
+    fontColor?: string;
+    align?: "center" | "left";
+    wrap?: boolean;
+    size?: number;
+    border?: "thin" | "medium";
+    numFmt?: string;
+  }
+) {
+  cel.font = {
+    name: "Calibri",
+    bold: opts.bold ?? false,
+    size: opts.size ?? 11,
+    color: { argb: opts.fontColor ?? "FF000000" },
+  };
+  if (opts.fill) {
+    cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
+  }
+  cel.alignment = {
+    horizontal: opts.align ?? "center",
+    vertical: "middle",
+    wrapText: opts.wrap ?? false,
+  };
+  if (opts.border) {
+    const estilo = { style: opts.border } as const;
+    cel.border = { top: estilo, left: estilo, bottom: estilo, right: estilo };
+  }
+  if (opts.numFmt) {
+    cel.numFmt = opts.numFmt;
+  }
+}
+
+/** Escreve um titulo mesclado (B..G) na linha indicada, com fundo colorido - replica as faixas "JULHO 2026." / "SN MOVIDA" da planilha modelo. */
+function aplicarFaixaTitulo(
+  ws: ExcelJS.Worksheet,
+  linha: number,
+  texto: string,
+  fill: string,
+  fontColor = "FF000000"
+) {
+  ws.mergeCells(linha, 2, linha, 7); // B..G
+  const border = linha === 2 ? "medium" : "thin";
+  for (let col = 2; col <= 7; col++) {
+    const cel = ws.getCell(linha, col);
+    if (col === 2) cel.value = texto;
+    estilizarCelula(cel, { bold: true, fill, fontColor, align: "center", size: 12, border });
+  }
+}
+
+/** Escreve uma linha de dados (loja + 5 numeros) nas colunas B..G da aba "Resultado". */
+function escreverLinhaDados(
+  ws: ExcelJS.Worksheet,
+  linha: number,
+  valores: [string, number, number, number, number, number],
+  opts: { bold?: boolean; fill?: string } = {}
+) {
+  const r = ws.getRow(linha);
+  const celLoja = r.getCell(2);
+  celLoja.value = valores[0];
+  estilizarCelula(celLoja, { bold: opts.bold, fill: opts.fill, align: "left", border: "thin" });
+  for (let i = 1; i < valores.length; i++) {
+    const cel = r.getCell(2 + i);
+    cel.value = valores[i];
+    estilizarCelula(cel, {
+      bold: opts.bold,
+      fill: opts.fill,
+      align: "center",
+      border: "thin",
+      numFmt: i === valores.length - 1 ? "#,##0.00" : "#,##0",
+    });
+  }
+}
 
 export async function GET(req: NextRequest) {
   const { sessionClaims } = await auth();
@@ -182,6 +275,7 @@ export async function GET(req: NextRequest) {
     { data: todasPlacasCaptadas, error: erroPlacas },
     { data: captacoesDoMes, error: erroCaptacoes },
     { data: segurosDoMes, error: erroSeguros },
+    { data: segurosBaseDoMes, error: erroSegurosBase },
   ] = await Promise.all([
     supabase.from("captacoes").select("placa"),
     supabase
@@ -195,8 +289,17 @@ export async function GET(req: NextRequest) {
       .eq("status_venda", "Emitida")
       .gte("data_venda", inicio)
       .lt("data_venda", fim),
+    // Sem filtro de status_venda: a aba "Base" e o detalhe bruto do periodo
+    // (todo mundo que teve alguma tentativa de venda no mes), diferente do
+    // "Resultado" que so conta status_venda = "Emitida".
+    supabase
+      .from("seguros_indicacao_movida")
+      .select("placa, loja, seguradora, data_venda, premio_liquido")
+      .gte("data_venda", inicio)
+      .lt("data_venda", fim)
+      .order("data_venda", { ascending: true }),
   ]);
-  if (erroPlacas || erroCaptacoes || erroSeguros) {
+  if (erroPlacas || erroCaptacoes || erroSeguros || erroSegurosBase) {
     return NextResponse.json(
       { error: "Falha ao consultar captacoes/seguros." },
       { status: 500 }
@@ -254,20 +357,99 @@ export async function GET(req: NextRequest) {
     { loja: "TOTAL GERAL", quant: 0, indicados: 0, semIndicacao: 0, comIndicacao: 0, totalR$: 0 }
   );
 
-  // ---- 4. Monta o .xlsx no layout da aba "Resultado" ----
+  // ---- 4. Monta o .xlsx replicando o visual da planilha modelo do time de
+  // seguros (cores/negrito/bordas/mesclagem extraidos do arquivo real que
+  // eles enviaram - ver helpers de estilo abaixo).
   const [anoStr, mesStr] = mes.split("-");
   const nomeMes = NOMES_MES[Number(mesStr) - 1];
-  const linhasPlanilha: (string | number)[][] = [
-    [`${nomeMes} ${anoStr}.`],
-    ["SN MOVIDA"],
-    ["REG / LOJAS", "Quant.", "Indicados", "Seguros fechados sem indicação", "Seguros fechados com indicação", "Total R$"],
-    ...linhas.map((l) => [l.loja, l.quant, l.indicados, l.semIndicacao, l.comIndicacao, l.totalR$]),
-    [totalGeral.loja, totalGeral.quant, totalGeral.indicados, totalGeral.semIndicacao, totalGeral.comIndicacao, totalGeral.totalR$],
+
+  const workbook = new ExcelJS.Workbook();
+  const wsResultado = workbook.addWorksheet("Resultado");
+  wsResultado.columns = [
+    { width: 3 }, // A - coluna vazia (espacador), igual a planilha modelo
+    { width: 65 }, // B - REG / LOJAS
+    { width: 7 }, // C - Quant.
+    { width: 9.5 }, // D - Indicados
+    { width: 16 }, // E - Seguros fechados sem indicacao
+    { width: 15.5 }, // F - Seguros fechados com indicacao
+    { width: 9.5 }, // G - Total R$
   ];
-  const planilha = XLSX.utils.aoa_to_sheet(linhasPlanilha);
-  const livro = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(livro, planilha, "Resultado");
-  const buffer = XLSX.write(livro, { type: "buffer", bookType: "xlsx" }) as Buffer;
+
+  aplicarFaixaTitulo(wsResultado, 2, `${nomeMes} ${anoStr}.`, CINZA_TITULO);
+  aplicarFaixaTitulo(wsResultado, 4, "SN MOVIDA", ROXO_SN_MOVIDA, "FFFFFFFF");
+  wsResultado.getRow(4).height = 15.75;
+
+  const linhaCabecalho = wsResultado.getRow(5);
+  linhaCabecalho.height = 25.5;
+  const CABECALHOS_RESULTADO = [
+    "REG / LOJAS", "Quant.", "Indicados",
+    "Seguros fechados sem indicação", "Seguros fechados com indicação", "Total R$",
+  ];
+  CABECALHOS_RESULTADO.forEach((texto, i) => {
+    const cel = linhaCabecalho.getCell(2 + i); // comeca na coluna B
+    cel.value = texto;
+    estilizarCelula(cel, {
+      bold: true,
+      fill: CINZA_CABECALHO,
+      align: "center",
+      wrap: true,
+      size: i === 3 || i === 4 ? 10 : 11, // colunas mais longas (E/F) usam fonte menor, igual ao original
+      border: "thin",
+    });
+  });
+
+  let linhaAtual = 6;
+  for (const l of linhas) {
+    escreverLinhaDados(wsResultado, linhaAtual, [l.loja, l.quant, l.indicados, l.semIndicacao, l.comIndicacao, l.totalR$]);
+    linhaAtual += 1;
+  }
+  escreverLinhaDados(
+    wsResultado,
+    linhaAtual,
+    [totalGeral.loja, totalGeral.quant, totalGeral.indicados, totalGeral.semIndicacao, totalGeral.comIndicacao, totalGeral.totalR$],
+    { bold: true, fill: CINZA_TOTAL }
+  );
+
+  // ---- 5. Aba "Base" - detalhe bruto (todas as tentativas de venda do mes,
+  // nao so as Emitidas), no mesmo layout da planilha modelo do time de
+  // seguros. "Tipo Seguro" nao existe como campo separado nos dados reais
+  // hoje (as planilhas tem "Seguradora", nao um "tipo" distinto) - usamos a
+  // seguradora ali ate existir um campo de tipo de verdade.
+  const wsBase = workbook.addWorksheet("Base");
+  wsBase.columns = [
+    { width: 9.5 }, // Placa
+    { width: 8.5 }, // Loja
+    { width: 19 }, // Tipo Seguro
+    { width: 16 }, // Data Venda
+    { width: 19.5 }, // Valor R$ Seguro
+  ];
+  const linhaCabecalhoBase = wsBase.getRow(1);
+  ["Placa", "Loja", "Tipo Seguro", "Data Venda", "Valor R$ Seguro"].forEach((texto, i) => {
+    const cel = linhaCabecalhoBase.getCell(1 + i);
+    cel.value = texto;
+    estilizarCelula(cel, { bold: true, fill: CINZA_CABECALHO, align: "center", border: "thin" });
+  });
+  (segurosBaseDoMes ?? []).forEach((s, i) => {
+    const linha = wsBase.getRow(2 + i);
+    const valores = [
+      s.placa,
+      s.loja ?? "",
+      s.seguradora ?? "",
+      s.data_venda ? formatarDataBr(s.data_venda) : "",
+      s.premio_liquido ?? "",
+    ];
+    valores.forEach((v, j) => {
+      const cel = linha.getCell(1 + j);
+      cel.value = v;
+      estilizarCelula(cel, {
+        align: "center",
+        border: "thin",
+        numFmt: j === 4 ? "#,##0.00" : undefined,
+      });
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
