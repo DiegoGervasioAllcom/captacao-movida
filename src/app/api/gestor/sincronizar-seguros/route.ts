@@ -208,7 +208,6 @@ export async function POST(req: NextRequest) {
     const { count, error: erroContagem } = await supabase
       .from("seguros_indicacao_movida")
       .select("id", { count: "exact", head: true })
-      .eq("status_venda", "Emitida")
       .gte("data_venda", inicio)
       .lt("data_venda", fim);
     if (erroContagem) {

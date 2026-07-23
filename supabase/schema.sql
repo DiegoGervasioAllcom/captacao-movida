@@ -176,8 +176,8 @@ create table seguros_indicacao_movida (
   data_venda date,
   -- Valores vistos nas planilhas: Emitida | Cancelada | Recusada | Pendente.
   -- So "Emitida" conta no relatorio (Cancelada/Recusada/Pendente ficam no
-  -- banco como historico) - esse filtro e responsabilidade de quem monta o
-  -- relatorio, nao desta tabela.
+  -- banco como historico). As metricas de transmissoes sao diferentes:
+  -- contam toda linha com data_venda no periodo, independentemente do status.
   status_venda text,
   premio_liquido numeric(12,2),
   seguradora text,

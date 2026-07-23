@@ -205,15 +205,18 @@ O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint
 
 > Só conta como "seguro fechado" a linha com `STATUS DA VENDA = "Emitida"`. `Cancelada`/`Recusada`/`Pendente` ficam sincronizadas na tabela `seguros_indicacao_movida` como histórico, mas não entram nos números do relatório. Ver `LGPD.md` seção 4.3 para a base legal desta origem de dado pessoal (placa).
 
-O painel do gestor também mostra duas métricas agregadas: **Transmissões emitidas hoje** e
-**Transmissões emitidas no mês**. As duas contam, no servidor, apenas registros de
-`seguros_indicacao_movida` com `status_venda = "Emitida"`, filtrados por `data_venda` no fuso
-`America/Sao_Paulo`. Cada card tem um botão **Atualizar**, que chama
+O painel do gestor também mostra duas métricas agregadas: **Transmissões hoje** e
+**Transmissões no mês**. As duas contam, no servidor, todo registro de
+`seguros_indicacao_movida` cuja `data_venda` esteja no período, independentemente de
+`status_venda`, usando o fuso `America/Sao_Paulo`. Cada card tem um botão **Atualizar**, que chama
 `POST /api/gestor/sincronizar-seguros?periodo=dia|mes`: a rota lê as mesmas planilhas, faz upsert
-somente das linhas do período solicitado (incluindo os demais status para refletir cancelamentos
-e recusas), retorna apenas a nova contagem de `Emitida` e não gera arquivo. Os botões bloqueiam
+somente das linhas com data de venda no período solicitado, retorna apenas a nova contagem e não
+gera arquivo. Os botões bloqueiam
 requisições concorrentes. Gerar o relatório mensal continua sincronizando a base inteira e também
 atualiza as métricas.
+
+> Após alterar `captacoes-to-google-sheets.gs`, publique uma nova versão do Web App no Apps Script.
+> O `doGet` atualizado inclui toda linha com **DATA DA VENDA** preenchida, mesmo que o status esteja vazio.
 
 ---
 

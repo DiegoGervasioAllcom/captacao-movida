@@ -78,8 +78,8 @@ export default async function GestorPage({
   let totalCaptacoes = 0;
   let captacoesHoje = 0;
   let vendedoresAtivos = 0;
-  let transmissoesEmitidasHoje = 0;
-  let transmissoesEmitidasMes = 0;
+  let transmissoesHoje = 0;
+  let transmissoesMes = 0;
   let erro: string | null = null;
 
   try {
@@ -115,13 +115,11 @@ export default async function GestorPage({
       supabase
         .from("seguros_indicacao_movida")
         .select("id", { count: "exact", head: true })
-        .eq("status_venda", "Emitida")
         .gte("data_venda", dataHoje)
         .lt("data_venda", amanha),
       supabase
         .from("seguros_indicacao_movida")
         .select("id", { count: "exact", head: true })
-        .eq("status_venda", "Emitida")
         .gte("data_venda", mesAtual.inicio)
         .lt("data_venda", mesAtual.fim),
     ]);
@@ -143,8 +141,8 @@ export default async function GestorPage({
       vendedoresAtivos = new Set(
         (dadosVendedores ?? []).map((v) => v.vendedor_id)
       ).size;
-      transmissoesEmitidasHoje = countTransmissoesHoje ?? 0;
-      transmissoesEmitidasMes = countTransmissoesMes ?? 0;
+      transmissoesHoje = countTransmissoesHoje ?? 0;
+      transmissoesMes = countTransmissoesMes ?? 0;
     }
   } catch {
     erro = "Falha ao conectar ao banco de dados.";
@@ -175,8 +173,8 @@ export default async function GestorPage({
             totalCaptacoes={totalCaptacoes}
             captacoesHoje={captacoesHoje}
             vendedoresAtivos={vendedoresAtivos}
-            transmissoesEmitidasHoje={transmissoesEmitidasHoje}
-            transmissoesEmitidasMes={transmissoesEmitidasMes}
+            transmissoesHoje={transmissoesHoje}
+            transmissoesMes={transmissoesMes}
           />
         )}
       </main>

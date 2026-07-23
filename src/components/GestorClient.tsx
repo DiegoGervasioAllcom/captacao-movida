@@ -65,8 +65,8 @@ export default function GestorClient({
   totalCaptacoes,
   captacoesHoje,
   vendedoresAtivos,
-  transmissoesEmitidasHoje,
-  transmissoesEmitidasMes,
+  transmissoesHoje,
+  transmissoesMes,
 }: {
   captacoes: Captacao[];
   busca: string;
@@ -76,8 +76,8 @@ export default function GestorClient({
   totalCaptacoes: number;
   captacoesHoje: number;
   vendedoresAtivos: number;
-  transmissoesEmitidasHoje: number;
-  transmissoesEmitidasMes: number;
+  transmissoesHoje: number;
+  transmissoesMes: number;
 }) {
   const router = useRouter();
   const [textoBusca, setTextoBusca] = useState(busca);
@@ -87,8 +87,10 @@ export default function GestorClient({
   const [mesRelatorio, setMesRelatorio] = useState(mesAtual);
   const [baixandoRelatorio, setBaixandoRelatorio] = useState(false);
   const [erroRelatorio, setErroRelatorio] = useState("");
-  const [emitidasHoje, setEmitidasHoje] = useState(transmissoesEmitidasHoje);
-  const [emitidasMes, setEmitidasMes] = useState(transmissoesEmitidasMes);
+  const [totalTransmissoesHoje, setTotalTransmissoesHoje] =
+    useState(transmissoesHoje);
+  const [totalTransmissoesMes, setTotalTransmissoesMes] =
+    useState(transmissoesMes);
   const [atualizandoPeriodo, setAtualizandoPeriodo] = useState<
     "dia" | "mes" | null
   >(null);
@@ -96,11 +98,11 @@ export default function GestorClient({
 
   // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
   useEffect(() => setTextoBusca(busca), [busca]);
-  useEffect(() => setEmitidasHoje(transmissoesEmitidasHoje), [
-    transmissoesEmitidasHoje,
+  useEffect(() => setTotalTransmissoesHoje(transmissoesHoje), [
+    transmissoesHoje,
   ]);
-  useEffect(() => setEmitidasMes(transmissoesEmitidasMes), [
-    transmissoesEmitidasMes,
+  useEffect(() => setTotalTransmissoesMes(transmissoesMes), [
+    transmissoesMes,
   ]);
 
   // Debounce: so navega 400ms depois de parar de digitar, e reseta pra pagina 1.
@@ -199,9 +201,9 @@ export default function GestorClient({
       }
 
       if (periodo === "dia") {
-        setEmitidasHoje(corpo.total);
+        setTotalTransmissoesHoje(corpo.total);
       } else {
-        setEmitidasMes(corpo.total);
+        setTotalTransmissoesMes(corpo.total);
       }
       router.refresh();
     } catch (err) {
@@ -234,12 +236,12 @@ export default function GestorClient({
         </div>
       </div>
 
-      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões emitidas">
+      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões">
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões emitidas hoje</div>
+          <div className="cm-stat-label">Transmissões hoje</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
-              {emitidasHoje}
+              {totalTransmissoesHoje}
             </div>
             <button
               type="button"
@@ -252,10 +254,10 @@ export default function GestorClient({
           </div>
         </div>
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões emitidas no mês</div>
+          <div className="cm-stat-label">Transmissões no mês</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
-              {emitidasMes}
+              {totalTransmissoesMes}
             </div>
             <button
               type="button"
