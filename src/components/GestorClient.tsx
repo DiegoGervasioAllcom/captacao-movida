@@ -65,6 +65,8 @@ export default function GestorClient({
   totalCaptacoes,
   captacoesHoje,
   vendedoresAtivos,
+  transmissoesEmitidasHoje,
+  transmissoesEmitidasMes,
 }: {
   captacoes: Captacao[];
   busca: string;
@@ -74,6 +76,8 @@ export default function GestorClient({
   totalCaptacoes: number;
   captacoesHoje: number;
   vendedoresAtivos: number;
+  transmissoesEmitidasHoje: number;
+  transmissoesEmitidasMes: number;
 }) {
   const router = useRouter();
   const [textoBusca, setTextoBusca] = useState(busca);
@@ -83,9 +87,21 @@ export default function GestorClient({
   const [mesRelatorio, setMesRelatorio] = useState(mesAtual);
   const [baixandoRelatorio, setBaixandoRelatorio] = useState(false);
   const [erroRelatorio, setErroRelatorio] = useState("");
+  const [emitidasHoje, setEmitidasHoje] = useState(transmissoesEmitidasHoje);
+  const [emitidasMes, setEmitidasMes] = useState(transmissoesEmitidasMes);
+  const [atualizandoPeriodo, setAtualizandoPeriodo] = useState<
+    "dia" | "mes" | null
+  >(null);
+  const [erroMetricas, setErroMetricas] = useState("");
 
   // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
   useEffect(() => setTextoBusca(busca), [busca]);
+  useEffect(() => setEmitidasHoje(transmissoesEmitidasHoje), [
+    transmissoesEmitidasHoje,
+  ]);
+  useEffect(() => setEmitidasMes(transmissoesEmitidasMes), [
+    transmissoesEmitidasMes,
+  ]);
 
   // Debounce: so navega 400ms depois de parar de digitar, e reseta pra pagina 1.
   useEffect(() => {
@@ -154,12 +170,48 @@ export default function GestorClient({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      // A rota sincroniza primeiro as 3 planilhas no Supabase. Atualiza a
+      // Server Component para as metricas refletirem os dados recem-gravados.
+      router.refresh();
     } catch (err) {
       setErroRelatorio(
         err instanceof Error ? err.message : "Falha ao gerar o relatorio."
       );
     } finally {
       setBaixandoRelatorio(false);
+    }
+  }
+
+  async function atualizarTransmissoes(periodo: "dia" | "mes") {
+    setAtualizandoPeriodo(periodo);
+    setErroMetricas("");
+    try {
+      const resposta = await fetch(
+        `/api/gestor/sincronizar-seguros?periodo=${periodo}`,
+        { method: "POST", cache: "no-store" }
+      );
+      const corpo = (await resposta.json().catch(() => null)) as {
+        total?: number;
+        error?: string;
+      } | null;
+      if (!resposta.ok || typeof corpo?.total !== "number") {
+        throw new Error(corpo?.error || "Falha ao atualizar as transmissões.");
+      }
+
+      if (periodo === "dia") {
+        setEmitidasHoje(corpo.total);
+      } else {
+        setEmitidasMes(corpo.total);
+      }
+      router.refresh();
+    } catch (err) {
+      setErroMetricas(
+        err instanceof Error
+          ? err.message
+          : "Falha ao atualizar as transmissões."
+      );
+    } finally {
+      setAtualizandoPeriodo(null);
     }
   }
 
@@ -181,6 +233,49 @@ export default function GestorClient({
           <div className="cm-stat-value">{vendedoresAtivos}</div>
         </div>
       </div>
+
+      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões emitidas">
+        <div className="cm-stat">
+          <div className="cm-stat-label">Transmissões emitidas hoje</div>
+          <div className="cm-stat-actions">
+            <div className="cm-stat-value" aria-live="polite">
+              {emitidasHoje}
+            </div>
+            <button
+              type="button"
+              className="cm-btn cm-btn-ghost cm-btn-sm"
+              onClick={() => atualizarTransmissoes("dia")}
+              disabled={atualizandoPeriodo !== null}
+            >
+              {atualizandoPeriodo === "dia" ? "Atualizando..." : "↻ Atualizar"}
+            </button>
+          </div>
+        </div>
+        <div className="cm-stat">
+          <div className="cm-stat-label">Transmissões emitidas no mês</div>
+          <div className="cm-stat-actions">
+            <div className="cm-stat-value" aria-live="polite">
+              {emitidasMes}
+            </div>
+            <button
+              type="button"
+              className="cm-btn cm-btn-ghost cm-btn-sm"
+              onClick={() => atualizarTransmissoes("mes")}
+              disabled={atualizandoPeriodo !== null}
+            >
+              {atualizandoPeriodo === "mes" ? "Atualizando..." : "↻ Atualizar"}
+            </button>
+          </div>
+        </div>
+      </div>
+      <p className="cm-stats-note">
+        Atualize diretamente pelas planilhas, sem gerar o relatório.
+      </p>
+      {erroMetricas && (
+        <p role="alert" className="cm-alert cm-alert-err">
+          {erroMetricas}
+        </p>
+      )}
 
       <section className="cm-card">
         <div className="cm-toolbar">

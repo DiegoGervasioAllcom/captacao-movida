@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validação de Captação"
+  short_description: "Valide telefone, placa e cadastro de leads"
+  default_prompt: "Use $captacao-validation para revisar a validação deste fluxo de captação."

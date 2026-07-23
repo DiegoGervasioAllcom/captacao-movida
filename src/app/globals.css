@@ -370,9 +370,25 @@ a {
   margin-bottom: var(--space-6);
 }
 
+.cm-stats-secondary {
+  max-width: 920px;
+  margin: 0 auto var(--space-2);
+}
+
+.cm-stats-note {
+  margin: 0 auto var(--space-6);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  text-align: center;
+}
+
 @media (min-width: 768px) {
   .cm-stats {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .cm-stats-secondary {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -396,6 +412,18 @@ a {
   font-size: 32px;
   font-weight: 800;
   margin-top: var(--space-1);
+}
+
+.cm-stat-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.cm-stat-actions .cm-stat-value {
+  margin-top: 0;
 }
 
 /* =========================================================================
