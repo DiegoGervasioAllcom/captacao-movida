@@ -1,0 +1,4 @@
+interface:
+  display_name: "Importador ViaNuvem"
+  short_description: "Opere o job Playwright de importação ViaNuvem"
+  default_prompt: "Use $vianuvem-import-job para implementar ou depurar o job de importação ViaNuvem."

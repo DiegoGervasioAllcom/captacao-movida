@@ -1,0 +1,4 @@
+interface:
+  display_name: "Supabase RLS"
+  short_description: "Implemente schema, policies, claims e RPCs"
+  default_prompt: "Use $supabase-rls para revisar ou alterar schema, RLS ou RPCs do projeto."

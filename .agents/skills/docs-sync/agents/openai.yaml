@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sincronia de Documentação"
+  short_description: "Mantenha código e documentação sincronizados"
+  default_prompt: "Use $docs-sync para atualizar a documentação afetada por esta mudança."

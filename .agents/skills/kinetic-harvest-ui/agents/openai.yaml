@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kinetic Harvest UI"
+  short_description: "Aplique os regimes visuais e acessibilidade"
+  default_prompt: "Use $kinetic-harvest-ui para criar ou revisar esta interface do projeto."

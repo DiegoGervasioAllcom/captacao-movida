@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tratamento LGPD"
+  short_description: "Revise dados pessoais, acesso, logs e retenção"
+  default_prompt: "Use $lgpd-data-handling para revisar o tratamento de dados pessoais desta mudança."

@@ -1202,6 +1202,17 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
     <table>
       <tr><th>Item</th><th>Status</th><th>O que foi feito</th></tr>
       <tr>
+        <td><span class="file-ref">AGENTS.md / .agents/ / .codex/agents/</span></td>
+        <td><span class="status ok">Importado no Codex</span></td>
+        <td>Em 23/07/2026, o contexto do projeto foi adaptado para as superfícies nativas do Codex:
+          <code>AGENTS.md</code> passou a carregar as regras persistentes e apontar para a fonte detalhada;
+          as 9 skills foram copiadas para <code>.agents/skills/</code>, receberam metadados
+          <code>agents/openai.yaml</code> e passaram no validador oficial; os 6 especialistas foram
+          convertidos para agentes TOML em <code>.codex/agents/</code>. O conteúdo original em
+          <code>.claude/</code> foi preservado para compatibilidade, com regra explícita de sincronia
+          entre as duas plataformas.</td>
+      </tr>
+      <tr>
         <td><span class="file-ref">src/app/globals.css</span></td>
         <td><span class="status corrigido">Limpo</span></td>
         <td>Removidas ~45 classes de CSS morto (de 1014 para 509 linhas): toda a família
@@ -1340,6 +1351,24 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
       Base: Placa, Loja, Tipo Seguro, Data Venda, <strong>Status da Venda</strong>, Valor R$ Seguro — nessa ordem
       (Status da Venda logo depois de Data Venda). A coluna "Tipo Seguro" usa o valor de <code>Seguradora</code> —
       os dados reais não têm um campo de "tipo" separado da seguradora.
+    </p>
+    <h3>Métricas de transmissões emitidas no painel</h3>
+    <p>
+      Em 23/07/2026, o painel do gestor ganhou dois cards centralizados abaixo das três métricas originais:
+      <strong>Transmissões emitidas hoje</strong> e <strong>Transmissões emitidas no mês</strong>. As consultas
+      rodam na Server Component com <code>count: "exact"</code> e <code>head: true</code>, sem enviar placa,
+      observação, motivo ou outro dado pessoal ao navegador. Só entram linhas com
+      <code>status_venda = "Emitida"</code>; o período usa <code>data_venda</code> e o calendário de
+      <code>America/Sao_Paulo</code>.
+    </p>
+    <p>
+      Cada card possui um botão <strong>Atualizar</strong>, sem download. Ele chama
+      <code>POST /api/gestor/sincronizar-seguros?periodo=dia|mes</code>, lê as mesmas três planilhas, filtra o
+      período no servidor e faz upsert no banco. Todos os status do período são persistidos para que uma
+      transmissão antes emitida, mas depois cancelada ou recusada, deixe de contar corretamente. A resposta
+      contém apenas a contagem agregada de <code>Emitida</code>; os botões bloqueiam requisições concorrentes e
+      o acesso permanece gestor-only por <code>app_role</code> e RLS. O relatório mensal continua sincronizando
+      a base inteira e também atualiza os cards depois do download.
     </p>
     <div class="callout warn">
       <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>

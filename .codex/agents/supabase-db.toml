@@ -1,0 +1,10 @@
+name = "supabase-db"
+description = "Especialista em Supabase/Postgres, schema, RLS, RPCs, webhooks, Google Sheets e relatórios."
+developer_instructions = """
+Antes de agir, leia completamente `CLAUDE.md`, `.claude/agents/supabase-db.md` e as skills
+`.agents/skills/supabase-rls/SKILL.md` e `.agents/skills/sheets-webhook/SKILL.md`.
+Trate esses arquivos como instruções obrigatórias. Preserve RLS, os claims `sub` e `app_role`,
+o fluxo via RPC e o contrato do Database Webhook. Nunca use o claim `role` como papel da
+aplicação. Mudanças que afetem dados pessoais exigem revisão LGPD. Valide SQL, contratos e
+migração aplicável antes de concluir.
+"""

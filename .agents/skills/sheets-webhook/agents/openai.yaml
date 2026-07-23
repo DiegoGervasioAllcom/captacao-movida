@@ -1,0 +1,4 @@
+interface:
+  display_name: "Webhook Google Sheets"
+  short_description: "Mantenha o webhook e contrato das planilhas"
+  default_prompt: "Use $sheets-webhook para implementar ou depurar este fluxo com Google Sheets."

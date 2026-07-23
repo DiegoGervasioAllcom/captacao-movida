@@ -1,0 +1,4 @@
+interface:
+  display_name: "Auth Clerk e Supabase"
+  short_description: "Integre Clerk, claims, papéis e Supabase"
+  default_prompt: "Use $clerk-supabase-auth para implementar ou revisar este fluxo de autenticação."

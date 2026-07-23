@@ -1,0 +1,4 @@
+interface:
+  display_name: "Docker Next.js"
+  short_description: "Configure a imagem Docker do app Next.js"
+  default_prompt: "Use $docker-nextjs para revisar ou alterar a imagem Docker do aplicativo."
