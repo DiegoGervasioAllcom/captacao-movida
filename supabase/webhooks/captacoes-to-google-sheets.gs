@@ -264,10 +264,10 @@ function doGet(e) {
   }
 }
 
-// Le a aba "Pagina1" de UMA planilha e devolve as linhas com DATA DA VENDA
-// preenchida. Essa data define que a transmissao ocorreu; STATUS DA VENDA
-// pode estar vazio e continua sendo sincronizado. O relatorio mensal aplica
-// separadamente o filtro "so Emitida conta". As colunas de seguro (OBS, DATA DA VENDA,
+// Le a aba "Pagina1" de UMA planilha e devolve as linhas com STATUS DA
+// VENDA preenchido (Emitida/Cancelada/Recusada/Pendente - mantem historico
+// completo; o filtro "so Emitida conta" fica por conta de quem monta o
+// relatorio, nao deste endpoint). As colunas de seguro (OBS, DATA DA VENDA,
 // STATUS DA VENDA, PREMIO LIQUIDO, SEGURADORA, MOTIVO) sao achadas pelo
 // NOME do cabecalho da linha 1 - NUNCA por letra fixa - porque so 2 das 3
 // planilhas foram conferidas ao vivo; a 3a pode ter posicoes diferentes.
@@ -292,7 +292,7 @@ function lerSegurosDaAba(aba) {
   const colMotivo = acharColunaPorNome(cabecalhos, ['motivo']);
 
   const ultimaLinha = aba.getLastRow();
-  if (ultimaLinha < 2 || colDataVenda === -1) return [];
+  if (ultimaLinha < 2 || colStatusVenda === -1) return [];
 
   // NAO usar linha 3 aqui (diferente de encontrarLinhaPorPlaca/doPost, que
   // assumem cabecalho na linha 2 e dados a partir da linha 3): conferido AO
@@ -306,15 +306,15 @@ function lerSegurosDaAba(aba) {
   const dados = aba.getRange(2, 1, ultimaLinha - 1, ultimaColuna).getValues();
   const registros = [];
   dados.forEach(function (linha) {
-    const dataVenda = linha[colDataVenda];
-    if (dataVenda === '' || dataVenda == null) return;
+    const statusVenda = linha[colStatusVenda];
+    if (statusVenda === '' || statusVenda == null) return;
 
     registros.push({
       placa: colPlaca !== -1 ? linha[colPlaca] : '',
       loja: colLoja !== -1 ? linha[colLoja] : '',
       obs: colObs !== -1 ? linha[colObs] : '',
-      dataVenda: dataVenda,
-      statusVenda: colStatusVenda !== -1 ? linha[colStatusVenda] : '',
+      dataVenda: colDataVenda !== -1 ? linha[colDataVenda] : '',
+      statusVenda: statusVenda,
       premioLiquido: colPremioLiquido !== -1 ? linha[colPremioLiquido] : '',
       seguradora: colSeguradora !== -1 ? linha[colSeguradora] : '',
       motivo: colMotivo !== -1 ? linha[colMotivo] : '',

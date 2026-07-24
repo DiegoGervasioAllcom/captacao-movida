@@ -29,12 +29,6 @@ O webhook do Sheets precisa dos eventos **Insert E Update** (as duas caixas): a 
 - **INSERT** → `appendRow` com A–I preenchidas (J em branco).
 - **UPDATE** → `encontrarLinhaPorPlaca` varre a coluna I a partir da linha 3 e reescreve B–I **in-place** (não toca DATA nem STATUS). Placa não achada na planilha daquela loja → registra no log de erros, **não** duplica nem move entre planilhas (limitação conhecida: reivindicação por vendedor de loja que roteia pra OUTRA planilha fica só no log).
 
-## Leitura das vendas de seguro
-O `doGet` usado pelas rotas gestor-only inclui toda linha com **DATA DA VENDA** preenchida, mesmo
-que **STATUS DA VENDA** esteja vazio. Essa data é a fonte de verdade das métricas de transmissões
-do dia/mês. O relatório mensal aplica separadamente o filtro `status_venda = "Emitida"` para
-calcular seguros fechados.
-
 ## Modos de falha (por design)
 - O Web App **sempre responde HTTP 200** — o Supabase nunca re-tenta e não vê erro. Toda depuração começa na aba de log de erros (`registrarErro`, na planilha do William).
 - `registrarErro` grava **só** timestamp, mensagem e id técnico — nunca dado pessoal (LGPD). Mantenha assim.

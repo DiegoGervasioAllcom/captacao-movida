@@ -91,10 +91,6 @@ export default function GestorClient({
     useState(transmissoesHoje);
   const [totalTransmissoesMes, setTotalTransmissoesMes] =
     useState(transmissoesMes);
-  const [atualizandoPeriodo, setAtualizandoPeriodo] = useState<
-    "dia" | "mes" | null
-  >(null);
-  const [erroMetricas, setErroMetricas] = useState("");
 
   // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
   useEffect(() => setTextoBusca(busca), [busca]);
@@ -184,37 +180,9 @@ export default function GestorClient({
     }
   }
 
-  async function atualizarTransmissoes(periodo: "dia" | "mes") {
-    setAtualizandoPeriodo(periodo);
-    setErroMetricas("");
-    try {
-      const resposta = await fetch(
-        `/api/gestor/sincronizar-seguros?periodo=${periodo}`,
-        { method: "POST", cache: "no-store" }
-      );
-      const corpo = (await resposta.json().catch(() => null)) as {
-        total?: number;
-        error?: string;
-      } | null;
-      if (!resposta.ok || typeof corpo?.total !== "number") {
-        throw new Error(corpo?.error || "Falha ao atualizar as transmissões.");
-      }
-
-      if (periodo === "dia") {
-        setTotalTransmissoesHoje(corpo.total);
-      } else {
-        setTotalTransmissoesMes(corpo.total);
-      }
-      router.refresh();
-    } catch (err) {
-      setErroMetricas(
-        err instanceof Error
-          ? err.message
-          : "Falha ao atualizar as transmissões."
-      );
-    } finally {
-      setAtualizandoPeriodo(null);
-    }
+  function atualizarTransmissoes() {
+    // Reexecuta a Server Component, que consulta diretamente o Supabase.
+    router.refresh();
   }
 
   const totalPaginas = Math.max(1, Math.ceil(totalRegistros / tamanhoPagina));
@@ -236,9 +204,9 @@ export default function GestorClient({
         </div>
       </div>
 
-      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões">
+      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões emitidas">
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões hoje</div>
+          <div className="cm-stat-label">Transmissões emitidas hoje</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
               {totalTransmissoesHoje}
@@ -246,15 +214,14 @@ export default function GestorClient({
             <button
               type="button"
               className="cm-btn cm-btn-ghost cm-btn-sm"
-              onClick={() => atualizarTransmissoes("dia")}
-              disabled={atualizandoPeriodo !== null}
+              onClick={atualizarTransmissoes}
             >
-              {atualizandoPeriodo === "dia" ? "Atualizando..." : "↻ Atualizar"}
+              ↻ Atualizar
             </button>
           </div>
         </div>
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões no mês</div>
+          <div className="cm-stat-label">Transmissões emitidas no mês</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
               {totalTransmissoesMes}
@@ -262,22 +229,16 @@ export default function GestorClient({
             <button
               type="button"
               className="cm-btn cm-btn-ghost cm-btn-sm"
-              onClick={() => atualizarTransmissoes("mes")}
-              disabled={atualizandoPeriodo !== null}
+              onClick={atualizarTransmissoes}
             >
-              {atualizandoPeriodo === "mes" ? "Atualizando..." : "↻ Atualizar"}
+              ↻ Atualizar
             </button>
           </div>
         </div>
       </div>
       <p className="cm-stats-note">
-        Atualize diretamente pelas planilhas, sem gerar o relatório.
+        Os números são consultados diretamente no banco pela data da venda.
       </p>
-      {erroMetricas && (
-        <p role="alert" className="cm-alert cm-alert-err">
-          {erroMetricas}
-        </p>
-      )}
 
       <section className="cm-card">
         <div className="cm-toolbar">

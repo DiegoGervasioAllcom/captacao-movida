@@ -1352,23 +1352,21 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
       (Status da Venda logo depois de Data Venda). A coluna "Tipo Seguro" usa o valor de <code>Seguradora</code> —
       os dados reais não têm um campo de "tipo" separado da seguradora.
     </p>
-    <h3>Métricas de transmissões no painel</h3>
+    <h3>Métricas de transmissões emitidas no painel</h3>
     <p>
       Em 23/07/2026, o painel do gestor ganhou dois cards centralizados abaixo das três métricas originais:
-      <strong>Transmissões hoje</strong> e <strong>Transmissões no mês</strong>. As consultas
+      <strong>Transmissões emitidas hoje</strong> e <strong>Transmissões emitidas no mês</strong>. As consultas
       rodam na Server Component com <code>count: "exact"</code> e <code>head: true</code>, sem enviar placa,
       observação, motivo ou outro dado pessoal ao navegador. Entra toda linha cuja
       <code>data_venda</code> esteja no período, independentemente de <code>status_venda</code>, usando o
       calendário de <code>America/Sao_Paulo</code>.
     </p>
     <p>
-      Cada card possui um botão <strong>Atualizar</strong>, sem download. Ele chama
-      <code>POST /api/gestor/sincronizar-seguros?periodo=dia|mes</code>, lê as mesmas três planilhas, filtra o
-      período no servidor e faz upsert no banco. A presença de <code>data_venda</code> é a fonte de verdade
-      para considerar a transmissão; o status pode inclusive estar vazio. A resposta
-      contém apenas a contagem agregada pela data; os botões bloqueiam requisições concorrentes e
-      o acesso permanece gestor-only por <code>app_role</code> e RLS. O relatório mensal continua sincronizando
-      a base inteira e também atualiza os cards depois do download.
+      Cada card possui um botão <strong>Atualizar</strong>, sem download. Ele apenas recarrega a Server
+      Component e repete a consulta ao Supabase; não lê planilhas e não grava no banco. A presença de
+      <code>data_venda</code> é a fonte de verdade para considerar a transmissão, independentemente do status.
+      O acesso permanece gestor-only por <code>app_role</code> e RLS. O relatório mensal continua sendo o
+      fluxo separado responsável por sincronizar as planilhas com o banco.
     </p>
     <div class="callout warn">
       <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>
