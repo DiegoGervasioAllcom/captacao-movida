@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import ExcelJS from "exceljs";
 import { roleFromClaims } from "@/lib/roles";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { normalizarPlaca } from "@/lib/validation";
-import { LOJAS_DISPONIVEIS, lojaOficial } from "@/lib/loja";
+import { LOJAS_DISPONIVEIS } from "@/lib/loja";
+import {
+  ErroSincronizacaoSeguros,
+  sincronizarSegurosDasPlanilhas,
+} from "@/lib/sincronizar-seguros";
 
 // =========================================================================
 // Relatorio mensal de seguros por loja (download .xlsx no painel do gestor).
@@ -22,67 +25,6 @@ import { LOJAS_DISPONIVEIS, lojaOficial } from "@/lib/loja";
 // So "Emitida" conta como seguro fechado (Cancelada/Recusada/Pendente ficam
 // no banco como historico, mas nao entram nos numeros do relatorio).
 // =========================================================================
-
-interface RegistroSheet {
-  placa?: string;
-  loja?: string;
-  obs?: string;
-  dataVenda?: string;
-  statusVenda?: string;
-  premioLiquido?: string | number;
-  seguradora?: string;
-  motivo?: string;
-}
-
-/**
- * A coluna "DATA DA VENDA" e formatada como data na planilha - o Apps Script
- * serializa isso (JSON.stringify de um objeto Date) como ISO 8601, ex.:
- * "2026-07-16T03:00:00.000Z" (NAO como texto "16/07/2026"). Tambem tolera o
- * caso raro de a celula ainda ser texto solto tipo "15/07/2026" ou "08/0726"
- * (sem uma das barras - visto ao vivo numa das planilhas). Retorna null
- * (loga e pula a linha, nao quebra o processamento) quando nao consegue
- * interpretar, ou quando o ano vem claramente corrompido (ex.: celula mal
- * formatada gerando ano "0726" em vez de "2026").
- */
-function parseDataVenda(bruto: string | undefined): string | null {
-  if (!bruto) return null;
-  const s = String(bruto).trim();
-  if (!s) return null;
-
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})T/);
-  if (iso) {
-    const [, yyyy, mm, dd] = iso;
-    if (Number(yyyy) < 2000 || Number(yyyy) > 2100) return null;
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
-  const digitos = s.replace(/\D/g, "");
-  let dd: string, mm: string, yyyy: string;
-  if (digitos.length === 8) {
-    dd = digitos.slice(0, 2);
-    mm = digitos.slice(2, 4);
-    yyyy = digitos.slice(4, 8);
-  } else if (digitos.length === 6) {
-    dd = digitos.slice(0, 2);
-    mm = digitos.slice(2, 4);
-    yyyy = `20${digitos.slice(4, 6)}`;
-  } else {
-    return null;
-  }
-  const diaNum = Number(dd);
-  const mesNum = Number(mm);
-  if (mesNum < 1 || mesNum > 12 || diaNum < 1 || diaNum > 31) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-/** Aceita numero (Apps Script ja manda numero p/ celulas de moeda) ou texto "R$ 2.389,85" / "4.435,13". */
-function parsePremioLiquido(bruto: string | number | undefined): number | null {
-  if (bruto === undefined || bruto === null || bruto === "") return null;
-  if (typeof bruto === "number") return Number.isFinite(bruto) ? bruto : null;
-  const limpo = bruto.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  const n = Number(limpo);
-  return Number.isFinite(n) ? n : null;
-}
 
 /** "YYYY-MM-DD" (formato que o Supabase devolve p/ coluna `date`) -> "dd/MM/yyyy". */
 function formatarDataBr(isoDate: string): string {
@@ -224,66 +166,20 @@ export async function GET(req: NextRequest) {
   const mes = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? mesParam : mesAtualPadrao();
   const { inicio, fim } = limitesDoMes(mes);
 
-  const segurosUrl = process.env.SEGUROS_SHEETS_URL;
-  const segurosSecret = process.env.SEGUROS_READ_SECRET;
-  if (!segurosUrl || !segurosSecret) {
-    return NextResponse.json(
-      { error: "SEGUROS_SHEETS_URL e SEGUROS_READ_SECRET sao obrigatorios." },
-      { status: 500 }
-    );
-  }
-
-  const respostaSheets = await fetch(
-    `${segurosUrl}?secret=${encodeURIComponent(segurosSecret)}`
-  );
-  if (!respostaSheets.ok) {
-    return NextResponse.json(
-      { error: "Falha ao ler as planilhas de seguro." },
-      { status: 502 }
-    );
-  }
-  const corpoSheets = (await respostaSheets.json()) as {
-    ok: boolean;
-    registros?: RegistroSheet[];
-  };
-  if (!corpoSheets.ok || !Array.isArray(corpoSheets.registros)) {
-    return NextResponse.json(
-      { error: "Resposta invalida do endpoint de planilhas." },
-      { status: 502 }
-    );
-  }
-
-  const supabase = await createServerSupabaseClient();
-
-  // ---- 1. Upsert em `seguros_indicacao_movida` a partir das linhas lidas das planilhas ----
-  const linhasParaGravar = corpoSheets.registros
-    .map((r) => {
-      const placa = r.placa ? normalizarPlaca(r.placa) : "";
-      if (!placa) return null;
-      return {
-        placa,
-        loja: lojaOficial(r.loja) ?? r.loja ?? null,
-        obs: r.obs || null,
-        data_venda: parseDataVenda(r.dataVenda),
-        status_venda: r.statusVenda || null,
-        premio_liquido: parsePremioLiquido(r.premioLiquido),
-        seguradora: r.seguradora || null,
-        motivo: r.motivo || null,
-        updated_at: new Date().toISOString(),
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
-
-  if (linhasParaGravar.length > 0) {
-    const { error: erroUpsert } = await supabase
-      .from("seguros_indicacao_movida")
-      .upsert(linhasParaGravar, { onConflict: "placa" });
-    if (erroUpsert) {
+  let supabase;
+  try {
+    supabase = await sincronizarSegurosDasPlanilhas();
+  } catch (error) {
+    if (error instanceof ErroSincronizacaoSeguros) {
       return NextResponse.json(
-        { error: `Falha ao sincronizar seguros: ${erroUpsert.message}` },
-        { status: 500 }
+        { error: error.message },
+        { status: error.status }
       );
     }
+    return NextResponse.json(
+      { error: "Falha ao sincronizar seguros." },
+      { status: 500 }
+    );
   }
 
   // ---- 2. Dados para o cruzamento ----

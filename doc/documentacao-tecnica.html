@@ -1355,20 +1355,20 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
     <h3>Métricas de transmissões emitidas no painel</h3>
     <p>
       Em 23/07/2026, o painel do gestor ganhou dois cards centralizados abaixo das três métricas originais:
-      <strong>Transmissões emitidas hoje</strong> e <strong>Transmissões emitidas no mês</strong>. As consultas
+      <strong>Transmissões do dia</strong> e <strong>Transmissões do mês</strong>. As consultas
       rodam na Server Component com <code>count: "exact"</code> e <code>head: true</code>, sem enviar placa,
-      observação, motivo ou outro dado pessoal ao navegador. Só entram linhas com
-      <code>status_venda = "Emitida"</code>; o período usa <code>data_venda</code> e o calendário de
-      <code>America/Sao_Paulo</code>.
+      observação, motivo ou outro dado pessoal ao navegador. Entra toda linha cuja
+      <code>data_venda</code> esteja no período, independentemente de <code>status_venda</code>, usando o
+      calendário de <code>America/Sao_Paulo</code>.
     </p>
     <p>
       Cada card possui um botão <strong>Atualizar</strong>, sem download. Ele chama
-      <code>POST /api/gestor/sincronizar-seguros?periodo=dia|mes</code>, lê as mesmas três planilhas, filtra o
-      período no servidor e faz upsert no banco. Todos os status do período são persistidos para que uma
-      transmissão antes emitida, mas depois cancelada ou recusada, deixe de contar corretamente. A resposta
-      contém apenas a contagem agregada de <code>Emitida</code>; os botões bloqueiam requisições concorrentes e
-      o acesso permanece gestor-only por <code>app_role</code> e RLS. O relatório mensal continua sincronizando
-      a base inteira e também atualiza os cards depois do download.
+      <code>POST /api/gestor/sincronizar-seguros?periodo=dia|mes</code>, que reutiliza a mesma função de
+      sincronização completa executada pelo relatório mensal: lê o <code>doGet</code> já publicado, normaliza
+      as linhas e faz upsert no Supabase. Depois conta pela <code>data_venda</code> do período solicitado,
+      independentemente do status, e devolve somente o total agregado. Nenhum <code>.xlsx</code> é criado e
+      nenhuma mudança ou republicação do Apps Script é necessária. O acesso permanece gestor-only por
+      <code>app_role</code> e RLS.
     </p>
     <div class="callout warn">
       <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>
