@@ -208,9 +208,11 @@ O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint
 O painel do gestor também mostra duas métricas agregadas: **Transmissões emitidas hoje** e
 **Transmissões emitidas no mês**. As duas consultam diretamente no banco todo registro de
 `seguros_indicacao_movida` cuja `data_venda` esteja no período, independentemente de
-`status_venda`, usando o fuso `America/Sao_Paulo`. Cada card tem um botão **Atualizar**, que apenas
-refaz a consulta ao Supabase; não lê planilhas, não altera o banco e não gera arquivo. Gerar o
-relatório mensal continua sendo o fluxo que sincroniza as planilhas com o banco.
+`status_venda`, usando o fuso `America/Sao_Paulo`. Cada card tem um botão **Atualizar**, que chama
+`POST /api/gestor/sincronizar-seguros?periodo=dia|mes`. A rota reutiliza a mesma sincronização
+completa das três planilhas executada antes do relatório mensal, faz upsert no banco e retorna
+somente a contagem do período solicitado, sem montar ou baixar o `.xlsx`. O Apps Script não precisa
+de nenhuma alteração ou nova publicação para esse fluxo.
 
 ---
 

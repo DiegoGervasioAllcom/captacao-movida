@@ -91,6 +91,10 @@ export default function GestorClient({
     useState(transmissoesHoje);
   const [totalTransmissoesMes, setTotalTransmissoesMes] =
     useState(transmissoesMes);
+  const [atualizandoPeriodo, setAtualizandoPeriodo] = useState<
+    "dia" | "mes" | null
+  >(null);
+  const [erroMetricas, setErroMetricas] = useState("");
 
   // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
   useEffect(() => setTextoBusca(busca), [busca]);
@@ -180,9 +184,37 @@ export default function GestorClient({
     }
   }
 
-  function atualizarTransmissoes() {
-    // Reexecuta a Server Component, que consulta diretamente o Supabase.
-    router.refresh();
+  async function atualizarTransmissoes(periodo: "dia" | "mes") {
+    setAtualizandoPeriodo(periodo);
+    setErroMetricas("");
+    try {
+      const resposta = await fetch(
+        `/api/gestor/sincronizar-seguros?periodo=${periodo}`,
+        { method: "POST", cache: "no-store" }
+      );
+      const corpo = (await resposta.json().catch(() => null)) as {
+        total?: number;
+        error?: string;
+      } | null;
+      if (!resposta.ok || typeof corpo?.total !== "number") {
+        throw new Error(corpo?.error || "Falha ao atualizar as transmissões.");
+      }
+
+      if (periodo === "dia") {
+        setTotalTransmissoesHoje(corpo.total);
+      } else {
+        setTotalTransmissoesMes(corpo.total);
+      }
+      router.refresh();
+    } catch (error) {
+      setErroMetricas(
+        error instanceof Error
+          ? error.message
+          : "Falha ao atualizar as transmissões."
+      );
+    } finally {
+      setAtualizandoPeriodo(null);
+    }
   }
 
   const totalPaginas = Math.max(1, Math.ceil(totalRegistros / tamanhoPagina));
@@ -214,9 +246,10 @@ export default function GestorClient({
             <button
               type="button"
               className="cm-btn cm-btn-ghost cm-btn-sm"
-              onClick={atualizarTransmissoes}
+              onClick={() => atualizarTransmissoes("dia")}
+              disabled={atualizandoPeriodo !== null}
             >
-              ↻ Atualizar
+              {atualizandoPeriodo === "dia" ? "Atualizando..." : "↻ Atualizar"}
             </button>
           </div>
         </div>
@@ -229,16 +262,22 @@ export default function GestorClient({
             <button
               type="button"
               className="cm-btn cm-btn-ghost cm-btn-sm"
-              onClick={atualizarTransmissoes}
+              onClick={() => atualizarTransmissoes("mes")}
+              disabled={atualizandoPeriodo !== null}
             >
-              ↻ Atualizar
+              {atualizandoPeriodo === "mes" ? "Atualizando..." : "↻ Atualizar"}
             </button>
           </div>
         </div>
       </div>
       <p className="cm-stats-note">
-        Os números são consultados diretamente no banco pela data da venda.
+        Atualiza o banco pelas planilhas e recalcula pela data da venda, sem gerar relatório.
       </p>
+      {erroMetricas && (
+        <p role="alert" className="cm-alert cm-alert-err">
+          {erroMetricas}
+        </p>
+      )}
 
       <section className="cm-card">
         <div className="cm-toolbar">
