@@ -236,9 +236,9 @@ export default function GestorClient({
         </div>
       </div>
 
-      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões emitidas">
+      <div className="cm-stats cm-stats-secondary" aria-label="Transmissões">
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões emitidas hoje</div>
+          <div className="cm-stat-label">Transmissões do dia</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
               {totalTransmissoesHoje}
@@ -254,7 +254,7 @@ export default function GestorClient({
           </div>
         </div>
         <div className="cm-stat">
-          <div className="cm-stat-label">Transmissões emitidas no mês</div>
+          <div className="cm-stat-label">Transmissões do mês</div>
           <div className="cm-stat-actions">
             <div className="cm-stat-value" aria-live="polite">
               {totalTransmissoesMes}
@@ -270,9 +270,6 @@ export default function GestorClient({
           </div>
         </div>
       </div>
-      <p className="cm-stats-note">
-        Atualiza o banco pelas planilhas e recalcula pela data da venda, sem gerar relatório.
-      </p>
       {erroMetricas && (
         <p role="alert" className="cm-alert cm-alert-err">
           {erroMetricas}

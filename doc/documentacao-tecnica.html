@@ -1355,7 +1355,7 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
     <h3>Métricas de transmissões emitidas no painel</h3>
     <p>
       Em 23/07/2026, o painel do gestor ganhou dois cards centralizados abaixo das três métricas originais:
-      <strong>Transmissões emitidas hoje</strong> e <strong>Transmissões emitidas no mês</strong>. As consultas
+      <strong>Transmissões do dia</strong> e <strong>Transmissões do mês</strong>. As consultas
       rodam na Server Component com <code>count: "exact"</code> e <code>head: true</code>, sem enviar placa,
       observação, motivo ou outro dado pessoal ao navegador. Entra toda linha cuja
       <code>data_venda</code> esteja no período, independentemente de <code>status_venda</code>, usando o

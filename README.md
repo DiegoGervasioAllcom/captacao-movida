@@ -205,8 +205,8 @@ O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint
 
 > Só conta como "seguro fechado" a linha com `STATUS DA VENDA = "Emitida"`. `Cancelada`/`Recusada`/`Pendente` ficam sincronizadas na tabela `seguros_indicacao_movida` como histórico, mas não entram nos números do relatório. Ver `LGPD.md` seção 4.3 para a base legal desta origem de dado pessoal (placa).
 
-O painel do gestor também mostra duas métricas agregadas: **Transmissões emitidas hoje** e
-**Transmissões emitidas no mês**. As duas consultam diretamente no banco todo registro de
+O painel do gestor também mostra duas métricas agregadas: **Transmissões do dia** e
+**Transmissões do mês**. As duas consultam diretamente no banco todo registro de
 `seguros_indicacao_movida` cuja `data_venda` esteja no período, independentemente de
 `status_venda`, usando o fuso `America/Sao_Paulo`. Cada card tem um botão **Atualizar**, que chama
 `POST /api/gestor/sincronizar-seguros?periodo=dia|mes`. A rota reutiliza a mesma sincronização
