@@ -203,6 +203,14 @@ O mesmo Apps Script (`captacoes-to-google-sheets.gs`) também expõe um endpoint
    ```
 4. No painel do gestor, o botão "Baixar relatório do mês" chama `GET /api/gestor/relatorio-seguros?mes=YYYY-MM` (rota protegida — só `app_role = gestor`) e baixa um `.xlsx` com 2 abas, no layout da planilha de referência do time de seguros: **Resultado** (pivot por loja) e **Base** (detalhe bruto — todas as tentativas de venda do mês, não só as `Emitida`; "Tipo Seguro" nessa aba usa o campo `Seguradora`, já que os dados reais não têm um campo de "tipo" separado).
 
+### Relatório de desempenho por loja e vendedor
+
+Cada registro devolvido pelo `doGet` traz também a coluna **J STATUS** (andamento da negociação: "Sem contato", "Em negociação", "Venda transmitida"...), que vira `seguros_indicacao_movida.status_negociacao` e alimenta `GET /api/gestor/relatorio-desempenho?mes=YYYY-MM` — o `.xlsx` de **desempenho por loja e vendedor**, com 3 abas: **Por loja**, **Por vendedor** (agrupada por loja, com subtotal) e **Base** (lead a lead, com autofiltro). Ele mostra quantas indicações entraram via Nuvem x por vendedor, o status das negociações e as vendas pendentes/emitidas.
+
+> Por causa desse status, o `doGet` devolve **toda linha com placa**, não só as com venda de seguro (um lead sem venda também tem andamento de negociação). Logo `seguros_indicacao_movida` passou a ter linha para toda placa das planilhas, com as colunas de seguro nulas quando não houve venda — o relatório de seguros e as métricas de transmissões seguem certos porque filtram por `status_venda`/`data_venda`, mas **nunca conte `count(*)` dessa tabela como "vendas de seguro"**.
+
+Para este relatório funcionar em produção: rodar `alter table seguros_indicacao_movida add column status_negociacao text;` e **republicar** o Apps Script (salvar o arquivo não basta). Sem republicar, o campo não vem e o relatório sai com tudo em "Sem status".
+
 > Só conta como "seguro fechado" a linha com `STATUS DA VENDA = "Emitida"`. `Cancelada`/`Recusada`/`Pendente` ficam sincronizadas na tabela `seguros_indicacao_movida` como histórico, mas não entram nos números do relatório. Ver `LGPD.md` seção 4.3 para a base legal desta origem de dado pessoal (placa).
 
 O painel do gestor também mostra duas métricas agregadas: **Transmissões do dia** e

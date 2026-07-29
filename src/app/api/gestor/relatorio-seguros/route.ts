@@ -8,13 +8,30 @@ import {
   ErroSincronizacaoSeguros,
   sincronizarSegurosDasPlanilhas,
 } from "@/lib/sincronizar-seguros";
+import {
+  AMARELO,
+  CINZA_CABECALHO,
+  CINZA_TITULO,
+  CINZA_TOTAL,
+  NOMES_MES,
+  ROXO_SN_MOVIDA,
+  VERDE,
+  VERMELHO,
+  estilizarCelula,
+  formatarDataBr,
+  limitesDoMes,
+  mesAtualPadrao,
+} from "@/lib/xlsx-estilo";
 
 // =========================================================================
 // Relatorio mensal de seguros por loja (download .xlsx no painel do gestor).
 //
 // 1. Busca no endpoint `doGet` do Apps Script (as 3 planilhas Google Sheets
 //    que o Database Webhook ja alimenta - ver captacoes-to-google-sheets.gs)
-//    as linhas com STATUS DA VENDA preenchido.
+//    todas as linhas com placa. (Ate o relatorio de desempenho existir, so
+//    vinham as linhas com STATUS DA VENDA preenchido; este relatorio segue
+//    correto porque todas as consultas abaixo filtram por status_venda e/ou
+//    data_venda, nulos nas linhas sem venda.)
 // 2. Faz upsert em `seguros_indicacao_movida` (por placa) com o servidor Supabase autenticado
 //    como o proprio gestor (RLS - sem service_role neste app).
 // 3. Cruza com `captacoes` pela placa pra saber "com/sem indicacao" e conta
@@ -26,92 +43,19 @@ import {
 // no banco como historico, mas nao entram nos numeros do relatorio).
 // =========================================================================
 
-/** "YYYY-MM-DD" (formato que o Supabase devolve p/ coluna `date`) -> "dd/MM/yyyy". */
-function formatarDataBr(isoDate: string): string {
-  const [yyyy, mm, dd] = isoDate.split("-");
-  return `${dd}/${mm}/${yyyy}`;
-}
-
-function mesAtualPadrao(): string {
-  const hoje = new Date();
-  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** [inicio, fimExclusivo] em "YYYY-MM-DD" para o mes "YYYY-MM". */
-function limitesDoMes(mes: string): { inicio: string; fim: string } {
-  const [anoStr, mesStr] = mes.split("-");
-  const ano = Number(anoStr);
-  const mesNum = Number(mesStr);
-  const inicio = new Date(Date.UTC(ano, mesNum - 1, 1));
-  const fim = new Date(Date.UTC(ano, mesNum, 1));
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { inicio: fmt(inicio), fim: fmt(fim) };
-}
-
-const NOMES_MES = [
-  "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
-  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO",
-];
-
-// ---- Estilos extraidos da planilha modelo (MOVIDA 2026 SUPPER CERTO
-// SEGUROS) que o time de seguros enviou, pra o .xlsx gerado ter o mesmo
-// visual. As cores de cinza sao a aproximacao RGB dos tons de tema do Excel
-// ("Branco, Fundo 1, Mais Escuro 15/25/35%") usados no arquivo original; o
-// roxo da faixa "SN MOVIDA" e a cor exata (RGB puro) do arquivo original.
-const CINZA_TITULO = "FFD9D9D9";
-const CINZA_CABECALHO = "FFBFBFBF";
-const CINZA_TOTAL = "FFA6A6A6";
-const ROXO_SN_MOVIDA = "FF7030A0";
-
 // Cores de "semaforo" pro Status da Venda na aba Base - mesmo esquema dos
 // estilos nativos "Bom/Ruim/Neutro" do Excel (fundo claro + fonte escura da
 // mesma cor), pra ficar reconhecivel visualmente sem precisar ler o texto.
 function corDoStatusVenda(status: string | null): { fill: string; fontColor: string } | null {
   switch (status) {
     case "Emitida":
-      return { fill: "FFC6EFCE", fontColor: "FF006100" }; // verde
+      return VERDE;
     case "Recusada":
-      return { fill: "FFFFC7CE", fontColor: "FF9C0006" }; // vermelho
+      return VERMELHO;
     case "Pendente":
-      return { fill: "FFFFEB9C", fontColor: "FF9C6500" }; // amarelo
+      return AMARELO;
     default:
       return null; // "Cancelada" e outros ficam sem cor especial
-  }
-}
-
-function estilizarCelula(
-  cel: ExcelJS.Cell,
-  opts: {
-    bold?: boolean;
-    fill?: string;
-    fontColor?: string;
-    align?: "center" | "left";
-    wrap?: boolean;
-    size?: number;
-    border?: "thin" | "medium";
-    numFmt?: string;
-  }
-) {
-  cel.font = {
-    name: "Calibri",
-    bold: opts.bold ?? false,
-    size: opts.size ?? 11,
-    color: { argb: opts.fontColor ?? "FF000000" },
-  };
-  if (opts.fill) {
-    cel.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
-  }
-  cel.alignment = {
-    horizontal: opts.align ?? "center",
-    vertical: "middle",
-    wrapText: opts.wrap ?? false,
-  };
-  if (opts.border) {
-    const estilo = { style: opts.border } as const;
-    cel.border = { top: estilo, left: estilo, bottom: estilo, right: estilo };
-  }
-  if (opts.numFmt) {
-    cel.numFmt = opts.numFmt;
   }
 }
 

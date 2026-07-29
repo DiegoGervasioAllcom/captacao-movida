@@ -88,6 +88,13 @@
 // em JSON, para a rota do painel do gestor (`api/gestor/relatorio-seguros`,
 // fora deste arquivo) sincronizar com a tabela `seguros_indicacao_movida` do
 // Supabase.
+// Cada registro devolvido traz tambem a coluna J STATUS do contrato A-J
+// (`statusNegociacao`: "Sem contato", "Em negociação", "Venda transmitida"...),
+// usada pelo relatorio de desempenho por loja/vendedor
+// (`api/gestor/relatorio-desempenho`). Por causa dele, o `doGet` devolve TODAS
+// as linhas com placa - nao so as que tem venda de seguro, como era antes.
+// Enquanto a implantacao do Apps Script nao for republicada com esta versao,
+// esse campo nao vem e aquele relatorio mostra tudo como "Sem status".
 // Protegido por um script property SEPARADO do WEBHOOK_SECRET do `doPost`:
 // `SEGUROS_READ_SECRET` (segredo de leitura isolado do segredo de escrita -
 // gere com `openssl rand -hex 16`, do mesmo jeito que o outro). Passos
@@ -123,6 +130,15 @@ const PLANILHA_ERROS = PLANILHAS.william;
 // relatorio do ViaNuvem (vianuvem-import/), que grafa a mesma loja de jeitos
 // diferentes do que os admins digitam no Clerk - confirmado inspecionando
 // um export de verdade (ver memoria do projeto).
+//
+// AO MOVER UMA LOJA DE PLANILHA (como Penha/Vila Guilherme -> everton e Vila
+// Carrao/Vila Ema -> wesley em 28/07/2026): a mudanca vale so para os leads
+// NOVOS. As linhas antigas ficam onde estao (este script nao migra dados). E
+// se um vendedor reivindicar pelo portal um lead antigo dessa loja, o UPDATE
+// vai procurar a placa na planilha NOVA, nao achar, e cair no log de erro
+// ("UPDATE sem linha correspondente") - nesse caso a atualizacao tem que ser
+// feita a mao na planilha antiga. Se isso incomodar, mova/copie as linhas
+// antigas dessas lojas para a planilha nova antes de republicar.
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Americana': 'everton',
   'Campinas Amoreiras': 'everton',
@@ -135,6 +151,10 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Praia Grande': 'everton',
   'Seminovos Movida Praia Grande - Sp': 'everton', // apelido ViaNuvem
   'Santos': 'everton',
+  // Movidas da planilha 3 (william) para a 1 (everton) em 28/07/2026, a pedido
+  // do time - leads antigos dessas lojas continuam na planilha 3 (ver abaixo).
+  'Penha': 'everton',
+  'Vila Guilherme': 'everton',
 
   'Sao Jose dos Campos': 'wesley',
   'Suzano': 'wesley',
@@ -146,15 +166,15 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Mogi das Cruzes': 'wesley',
   'Aricanduva': 'wesley',
   'Itaim Paulista': 'wesley',
+  // Movidas da planilha 3 (william) para a 2 (wesley) em 28/07/2026, a pedido
+  // do time - leads antigos dessas lojas continuam na planilha 3 (ver abaixo).
+  'Vila Carrao': 'wesley',
+  'Vila Ema': 'wesley',
 
-  'Penha': 'william',
   'Radial Leste': 'william',
   'Sao Paulo Radial Leste': 'william', // apelido ViaNuvem
   'Sao Miguel': 'william',
   'Sao Miguel Paulista': 'william', // apelido ViaNuvem
-  'Vila Carrao': 'william',
-  'Vila Ema': 'william',
-  'Vila Guilherme': 'william',
 });
 
 function doPost(e) {
@@ -264,10 +284,14 @@ function doGet(e) {
   }
 }
 
-// Le a aba "Pagina1" de UMA planilha e devolve as linhas com STATUS DA
-// VENDA preenchido (Emitida/Cancelada/Recusada/Pendente - mantem historico
-// completo; o filtro "so Emitida conta" fica por conta de quem monta o
-// relatorio, nao deste endpoint). As colunas de seguro (OBS, DATA DA VENDA,
+// Le a aba "Pagina1" de UMA planilha e devolve TODAS as linhas que tem PLACA.
+// Antes o filtro era "STATUS DA VENDA preenchido" (so linha com venda de
+// seguro), mas o relatorio de desempenho por loja/vendedor precisa tambem do
+// andamento da negociacao (coluna J STATUS) das linhas SEM venda - "lead que
+// ninguem tocou ainda" e informacao valida. Linha sem venda vem com os campos
+// de seguro vazios, e os relatorios de seguro seguem certos porque filtram por
+// status_venda/data_venda (que ficam nulos nessas linhas).
+// As colunas de seguro (OBS, DATA DA VENDA,
 // STATUS DA VENDA, PREMIO LIQUIDO, SEGURADORA, MOTIVO) sao achadas pelo
 // NOME do cabecalho da linha 1 - NUNCA por letra fixa - porque so 2 das 3
 // planilhas foram conferidas ao vivo; a 3a pode ter posicoes diferentes.
@@ -290,9 +314,15 @@ function lerSegurosDaAba(aba) {
   const colPremioLiquido = acharColunaPorNome(cabecalhos, ['premio liquido']);
   const colSeguradora = acharColunaPorNome(cabecalhos, ['seguradora']);
   const colMotivo = acharColunaPorNome(cabecalhos, ['motivo']);
+  // Coluna J STATUS do contrato A-J: o andamento da negociacao ("Sem contato",
+  // "Em negociação", "Venda transmitida"...), preenchido a mao pelo time. Achada
+  // por nome como as outras, com fallback pro indice fixo 9 (J) do contrato
+  // original. A comparacao por nome e EXATA, entao 'status' nao casa com
+  // 'status da venda' - sao duas colunas diferentes.
+  const colStatusNegociacao = acharColunaPorNome(cabecalhos, ['status'], 9);
 
   const ultimaLinha = aba.getLastRow();
-  if (ultimaLinha < 2 || colStatusVenda === -1) return [];
+  if (ultimaLinha < 2) return [];
 
   // NAO usar linha 3 aqui (diferente de encontrarLinhaPorPlaca/doPost, que
   // assumem cabecalho na linha 2 e dados a partir da linha 3): conferido AO
@@ -306,15 +336,16 @@ function lerSegurosDaAba(aba) {
   const dados = aba.getRange(2, 1, ultimaLinha - 1, ultimaColuna).getValues();
   const registros = [];
   dados.forEach(function (linha) {
-    const statusVenda = linha[colStatusVenda];
-    if (statusVenda === '' || statusVenda == null) return;
+    const placa = colPlaca !== -1 ? linha[colPlaca] : '';
+    if (placa === '' || placa == null) return;
 
     registros.push({
-      placa: colPlaca !== -1 ? linha[colPlaca] : '',
+      placa: placa,
       loja: colLoja !== -1 ? linha[colLoja] : '',
       obs: colObs !== -1 ? linha[colObs] : '',
       dataVenda: colDataVenda !== -1 ? linha[colDataVenda] : '',
-      statusVenda: statusVenda,
+      statusVenda: colStatusVenda !== -1 ? linha[colStatusVenda] : '',
+      statusNegociacao: colStatusNegociacao !== -1 ? linha[colStatusNegociacao] : '',
       premioLiquido: colPremioLiquido !== -1 ? linha[colPremioLiquido] : '',
       seguradora: colSeguradora !== -1 ? linha[colSeguradora] : '',
       motivo: colMotivo !== -1 ? linha[colMotivo] : '',
