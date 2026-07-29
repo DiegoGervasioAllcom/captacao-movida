@@ -389,6 +389,7 @@
       <li><a href="#agentes-skills">Atualização dos agentes/skills e limpeza de CSS</a></li>
       <li><a href="#usuarios-por-loja">Utilitário: usuários por loja</a></li>
       <li><a href="#relatorio-seguros">Relatório mensal de seguros por loja</a></li>
+      <li><a href="#relatorio-desempenho">Relatório de desempenho por loja e vendedor</a></li>
     </ol>
   </nav>
 
@@ -1326,6 +1327,15 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
       cabeçalho</strong> (comparação exata, normalizada — nunca por letra fixa nem "contém"), porque a 3ª planilha
       não foi conferida ao vivo e pode ter posições diferentes das outras duas.
     </p>
+    <div class="callout info">
+      <span class="callout-title">Mudou na seção 21</span>
+      <p>
+        O <code>doGet</code> devolvia só as linhas com <code>STATUS DA VENDA</code> preenchido. Com o relatório de
+        desempenho, ele passou a devolver <strong>toda linha com placa</strong> — este relatório e os cards de
+        transmissões continuam corretos porque todas as suas consultas filtram por <code>status_venda</code> e/ou
+        <code>data_venda</code>, nulos nas linhas sem venda.
+      </p>
+    </div>
     <p>
       Só <code>STATUS DA VENDA = "Emitida"</code> conta como seguro fechado nos números do relatório
       (Quant./Total R$); <code>Cancelada</code>/<code>Recusada</code>/<code>Pendente</code> ficam sincronizadas em
@@ -1394,6 +1404,110 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
         — mesma situação estrutural da origem ViaNuvem. Ver <span class="file-ref">LGPD.md</span> seções 2, 3,
         4.3, 6, 7 e 9 para o detalhe completo (inclui uma pendência de retenção: a sincronização só faz
         insert/update, nunca delete — uma remoção na planilha de origem não se propaga ao Supabase).
+      </p>
+    </div>
+  </section>
+
+  <section id="relatorio-desempenho">
+    <div class="section-head"><span class="section-num">21</span><h2>Relatório de desempenho por loja e vendedor</h2></div>
+    <p>
+      Segundo relatório <code>.xlsx</code> do painel do gestor, pedido para acompanhar performance:
+      quantas indicações entraram <strong>via Nuvem</strong>, quantas foram feitas <strong>por vendedor</strong>,
+      o <strong>status das negociações</strong> por vendedor e quantas vendas estão <strong>pendentes</strong> ou
+      <strong>emitidas</strong>. Mesmo mecanismo da seção 20: clicar sincroniza o banco a partir das 3 planilhas
+      (a mesma <code>sincronizarSegurosDasPlanilhas</code> usada pelo relatório mensal e pelos cards de
+      transmissões) e só então monta o arquivo.
+    </p>
+    <div class="callout warn">
+      <span class="callout-title">O status da negociação NÃO estava no banco</span>
+      <p>
+        O pedido partiu da premissa de que o dado já estava no Supabase. Metade estava: venda
+        <em>pendente/emitida</em> já vinha de <span class="file-ref">seguros_indicacao_movida</span>, e
+        indicações/via Nuvem saem de <span class="file-ref">captacoes</span>. Mas o <strong>andamento da
+        negociação</strong> ("Sem contato", "Em negociação", "Venda transmitida"...) é a <strong>coluna J
+        STATUS</strong> das planilhas, preenchida à mão pelo time — e o <code>doGet</code> nem a devolvia (só lia
+        as colunas de seguro, e apenas de linhas com <code>STATUS DA VENDA</code> preenchido).
+      </p>
+    </div>
+    <p>
+      A primeira tentativa criou uma tabela nova (<code>negociacoes_planilha</code>), porque a
+      <span class="file-ref">seguros_indicacao_movida</span> só tinha linha para placa <em>com venda</em>. Foi
+      descartada a pedido: sai mais simples tirar aquele filtro do <code>doGet</code> e guardar o status como
+      <strong>coluna</strong> na tabela que já existia. O preço é que a tabela deixou de ser "vendas de seguro" e
+      passou a ser o <strong>espelho por placa</strong> das planilhas — está registrado no
+      <span class="file-ref">schema.sql</span>, porque o nome dela agora engana.
+    </p>
+    <div class="flow">
+      <div class="flow-box"><strong>1. Planilhas</strong><small>coluna J STATUS (manual) + colunas de seguro</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>2. <code>doGet</code></strong><small>cada registro traz <code>statusNegociacao</code>; devolve TODA linha com placa</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>3. Sincronização</strong><small>upsert em lotes de 500, com <code>status_negociacao</code></small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box"><strong>4. Download .xlsx</strong><small>3 abas: Por loja / Por vendedor / Base</small></div>
+    </div>
+    <p>
+      <strong>Universo do relatório:</strong> as captações com <code>created_at</code> dentro do mês escolhido.
+      Todo o resto (status da negociação, venda emitida/pendente, prêmio) descreve <em>esses</em> leads, cruzados
+      pela placa — de propósito <em>não</em> há um segundo filtro por data da venda, senão colunas da mesma linha
+      falariam de períodos diferentes e não fechariam entre si. Isso é diferente da seção 20, que filtra seguros
+      por <code>data_venda</code>: os dois relatórios não são somáveis entre si.
+    </p>
+    <table>
+      <thead><tr><th>Coluna</th><th>Origem / regra</th></tr></thead>
+      <tbody>
+        <tr><td>Via Nuvem</td><td><code>vendedor_id = 'vianuvem'</code> <strong>ou</strong> <code>cpf</code>/<code>email</code> preenchidos</td></tr>
+        <tr><td>Via Nuvem sem vendedor</td><td>Ainda com <code>vendedor_id = 'vianuvem'</code> (não reivindicada)</td></tr>
+        <tr><td>Indicações de vendedor</td><td>Leads com vendedor real (inclui as reivindicadas do ViaNuvem)</td></tr>
+        <tr><td>Colunas de status</td><td><code>status_negociacao</code> pela placa; sem valor → "Sem status"</td></tr>
+        <tr><td>Vendas emitidas / pendentes</td><td><code>status_venda</code> = <code>Emitida</code> / <code>Pendente</code></td></tr>
+        <tr><td>Total R$ emitido</td><td>Soma de <code>premio_liquido</code> das Emitidas</td></tr>
+      </tbody>
+    </table>
+    <div class="callout info">
+      <span class="callout-title">Por que "Via Nuvem" não usa a coluna <code>canal</code></span>
+      <p>
+        Porque <code>registrar_captacao_vendedor</code> troca <code>canal</code> por <code>"Indicação"</code>
+        quando o vendedor reivindica um lead do ViaNuvem (seção 14) — contar por <code>canal</code> perderia toda
+        reivindicação. Já <code>cpf</code>/<code>email</code> só chegam pela importação automática e
+        <strong>sobrevivem</strong> à reivindicação, então servem como marca de origem. Consequência: um lead
+        ViaNuvem antigo, importado antes desses campos existirem, aparece como "Indicação" — não há como
+        distingui-lo hoje.
+      </p>
+    </div>
+    <p>
+      As colunas de status <strong>não são fixas no código</strong>: são descobertas a partir dos valores presentes
+      nos dados do mês (ordem alfabética, "Sem status" por último), para não quebrar quando o time criar um valor
+      novo no dropdown da planilha. A aba <strong>Por vendedor</strong> agrupa por loja com linha de subtotal; a
+      aba <strong>Base</strong> lista lead a lead com autofiltro. Leads ainda não reivindicados aparecem só no
+      total da loja — não têm vendedor a quem atribuir.
+    </p>
+    <p>
+      Os helpers de estilo do <code>.xlsx</code> e o cálculo de mês saíram da rota de seguros para
+      <span class="file-ref">src/lib/xlsx-estilo.ts</span> (os dois relatórios usam os mesmos), e a sincronização
+      ganhou <strong>upsert em lotes de 500</strong>: com o filtro do <code>doGet</code> removido, o payload passou
+      a ser da ordem do total de leads das 3 planilhas, grande demais para um request único.
+    </p>
+    <div class="callout warn">
+      <span class="callout-title">Passos obrigatórios em produção</span>
+      <p>
+        1) Rodar <code>alter table seguros_indicacao_movida add column status_negociacao text;</code>.
+        2) <strong>Republicar</strong> o Apps Script (Implantar → Gerenciar implantações → Nova versão) — salvar o
+        arquivo não basta. 3) Deploy do app (a rota e o card são código novo; <code>git pull</code> exige rebuild
+        da imagem). Sem o passo 2, o campo não vem e o relatório sai com tudo em "Sem status"; sem o passo 1, a
+        rota devolve erro de coluna inexistente.
+      </p>
+    </div>
+    <div class="callout info">
+      <span class="callout-title">LGPD</span>
+      <p>
+        Nenhum campo novo de dado pessoal: <code>status_negociacao</code> é dado sobre a negociação, e o
+        <code>doGet</code> continua sem devolver nome/telefone/CPF/e-mail do cliente. A aba Base lista
+        placa/loja/vendedor/status, sem contato do cliente (o objetivo é desempenho, não contato). O que mudou é o
+        <strong>volume</strong>: a cópia de placas no Supabase deixou de ser "quem fechou seguro" e passou a ser o
+        espelho das planilhas — o que amplia o alcance da pendência de retenção já registrada (o
+        <code>upsert</code> nunca faz <code>delete</code>, então remoção na origem não se propaga). RLS segue
+        gestor-only, sem policy nova. Ver <span class="file-ref">LGPD.md</span> seções 2 e 9.
       </p>
     </div>
   </section>

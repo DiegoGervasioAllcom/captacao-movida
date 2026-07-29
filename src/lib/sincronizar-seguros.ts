@@ -7,11 +7,28 @@ interface RegistroSheet {
   loja?: string;
   obs?: string;
   dataVenda?: string;
+  /** Status da VENDA do seguro: Emitida | Cancelada | Recusada | Pendente. */
   statusVenda?: string;
+  /**
+   * Coluna J STATUS do contrato A-J: o andamento da NEGOCIACAO ("Sem contato",
+   * "Em negociação", "Venda transmitida"...) - outra coluna, outro significado.
+   * So vem depois de republicar o Apps Script com a versao que a expoe; com uma
+   * implantacao antiga fica undefined e o relatorio de desempenho mostra tudo
+   * como "Sem status".
+   */
+  statusNegociacao?: string;
   premioLiquido?: string | number;
   seguradora?: string;
   motivo?: string;
 }
+
+/**
+ * Quantas linhas por chamada de upsert. Desde que o `doGet` passou a devolver
+ * TODA linha com placa (e nao so as com venda de seguro - era preciso pra ter o
+ * `status_negociacao` dos leads sem venda), esse payload e da ordem do total de
+ * leads das 3 planilhas: grande demais para um request unico.
+ */
+const TAMANHO_LOTE = 500;
 
 export class ErroSincronizacaoSeguros extends Error {
   constructor(
@@ -124,6 +141,7 @@ export async function sincronizarSegurosDasPlanilhas() {
       obs: string | null;
       data_venda: string | null;
       status_venda: string | null;
+      status_negociacao: string | null;
       premio_liquido: number | null;
       seguradora: string | null;
       motivo: string | null;
@@ -142,6 +160,9 @@ export async function sincronizarSegurosDasPlanilhas() {
       status_venda: registro.statusVenda
         ? String(registro.statusVenda).trim()
         : null,
+      status_negociacao: registro.statusNegociacao
+        ? String(registro.statusNegociacao).trim() || null
+        : null,
       premio_liquido: parsePremioLiquido(registro.premioLiquido),
       seguradora: registro.seguradora || null,
       motivo: registro.motivo || null,
@@ -151,10 +172,10 @@ export async function sincronizarSegurosDasPlanilhas() {
 
   const supabase = await createServerSupabaseClient();
   const linhas = Array.from(porPlaca.values());
-  if (linhas.length > 0) {
+  for (let i = 0; i < linhas.length; i += TAMANHO_LOTE) {
     const { error } = await supabase
       .from("seguros_indicacao_movida")
-      .upsert(linhas, { onConflict: "placa" });
+      .upsert(linhas.slice(i, i + TAMANHO_LOTE), { onConflict: "placa" });
     if (error) {
       throw new ErroSincronizacaoSeguros(
         "Falha ao sincronizar seguros no banco.",

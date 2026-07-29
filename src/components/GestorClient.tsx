@@ -87,6 +87,9 @@ export default function GestorClient({
   const [mesRelatorio, setMesRelatorio] = useState(mesAtual);
   const [baixandoRelatorio, setBaixandoRelatorio] = useState(false);
   const [erroRelatorio, setErroRelatorio] = useState("");
+  const [mesDesempenho, setMesDesempenho] = useState(mesAtual);
+  const [baixandoDesempenho, setBaixandoDesempenho] = useState(false);
+  const [erroDesempenho, setErroDesempenho] = useState("");
   const [totalTransmissoesHoje, setTotalTransmissoesHoje] =
     useState(transmissoesHoje);
   const [totalTransmissoesMes, setTotalTransmissoesMes] =
@@ -181,6 +184,41 @@ export default function GestorClient({
       );
     } finally {
       setBaixandoRelatorio(false);
+    }
+  }
+
+  // Baixa o .xlsx de desempenho por loja e vendedor do mes escolhido: quantas
+  // indicacoes vieram da Nuvem x do vendedor, status das negociacoes e vendas
+  // pendentes/emitidas (ver src/app/api/gestor/relatorio-desempenho).
+  async function baixarRelatorioDesempenho() {
+    setBaixandoDesempenho(true);
+    setErroDesempenho("");
+    try {
+      const resposta = await fetch(
+        `/api/gestor/relatorio-desempenho?mes=${mesDesempenho}`
+      );
+      if (!resposta.ok) {
+        const corpo = await resposta.json().catch(() => null);
+        throw new Error(corpo?.error || "Falha ao gerar o relatorio.");
+      }
+      const blob = await resposta.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `relatorio-desempenho-${mesDesempenho}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      // Esta rota tambem sincroniza as 3 planilhas antes de montar o arquivo -
+      // mesmo motivo do relatorio de seguros pra atualizar as metricas.
+      router.refresh();
+    } catch (err) {
+      setErroDesempenho(
+        err instanceof Error ? err.message : "Falha ao gerar o relatorio."
+      );
+    } finally {
+      setBaixandoDesempenho(false);
     }
   }
 
@@ -398,6 +436,42 @@ export default function GestorClient({
         {erroRelatorio && (
           <p role="alert" className="cm-alert cm-alert-err">
             {erroRelatorio}
+          </p>
+        )}
+      </section>
+
+      <section className="cm-card">
+        <h2 className="cm-card-title">Desempenho por loja e vendedor</h2>
+        <p className="cm-muted" style={{ fontSize: 13 }}>
+          Por loja e por vendedor: quantas indicacoes entraram via Nuvem,
+          quantas foram feitas por cada vendedor, o status das negociacoes
+          (Sem contato, Em negociacao, Venda transmitida...) e quantas vendas
+          estao pendentes ou emitidas. Atualiza o banco a partir das planilhas
+          antes de gerar o arquivo.
+        </p>
+        <div className="cm-row">
+          <label htmlFor="mes-relatorio-desempenho" className="cm-sr-only">
+            Mes do relatorio de desempenho
+          </label>
+          <input
+            id="mes-relatorio-desempenho"
+            className="cm-search"
+            type="month"
+            value={mesDesempenho}
+            onChange={(e) => setMesDesempenho(e.target.value)}
+          />
+          <button
+            type="button"
+            className="cm-btn cm-btn-ghost cm-btn-sm"
+            onClick={baixarRelatorioDesempenho}
+            disabled={baixandoDesempenho}
+          >
+            {baixandoDesempenho ? "Gerando..." : "⭳ Baixar desempenho do mes"}
+          </button>
+        </div>
+        {erroDesempenho && (
+          <p role="alert" className="cm-alert cm-alert-err">
+            {erroDesempenho}
           </p>
         )}
       </section>

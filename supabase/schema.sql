@@ -159,11 +159,19 @@ grant execute on function registrar_captacao_vendedor to authenticated;
 -- =========================================================================
 
 -- =========================================================================
--- Tabela de vendas de seguro, sincronizada a partir das 3 planilhas Google
--- Sheets que o Database Webhook ja alimenta (ver captacoes-to-google-sheets.gs
--- e o endpoint `doGet` la dentro). Usada para cruzar com `captacoes` no
--- relatorio mensal por loja do painel do gestor (quantos seguros fecharam
--- com indicacao e quantos sem).
+-- Espelho, por placa, das 3 planilhas Google Sheets que o Database Webhook ja
+-- alimenta (ver captacoes-to-google-sheets.gs e o endpoint `doGet` la dentro):
+-- as colunas que o time preenche A MAO e que nao existem em `captacoes`.
+-- Usada para cruzar com `captacoes` nos relatorios do painel do gestor:
+--   - relatorio-seguros    : quantos seguros fecharam com/sem indicacao
+--   - relatorio-desempenho : status da negociacao + vendas pendentes/emitidas
+--                            por loja e vendedor
+-- ATENCAO ao nome da tabela: ela nasceu so com as linhas que tinham VENDA de
+-- seguro, mas hoje o `doGet` manda TODA linha com placa (era preciso pra ter o
+-- `status_negociacao` dos leads sem venda). Ou seja, ter linha aqui NAO
+-- significa que houve venda - quem quer venda filtra por `status_venda`
+-- (e/ou `data_venda`), que ficam nulos nas linhas sem venda. Nunca conte
+-- `count(*)` desta tabela como "vendas de seguro".
 create table seguros_indicacao_movida (
   id uuid primary key default gen_random_uuid(),
   -- Unica: a sincronizacao roda toda vez que o gestor pede o relatorio, e
@@ -182,6 +190,16 @@ create table seguros_indicacao_movida (
   premio_liquido numeric(12,2),
   seguradora text,
   motivo text,
+  -- Andamento da NEGOCIACAO (coluna J STATUS do contrato A-J das planilhas,
+  -- preenchida a mao pelo time: "Sem contato", "Em negociação", "Venda
+  -- transmitida"...). NAO confundir com `status_venda` acima, que e o status da
+  -- venda do SEGURO - sao duas colunas diferentes da planilha. Este status nao
+  -- existe em `captacoes`: o portal nao o coleta, ele nasce na planilha. Usado
+  -- pelo relatorio de desempenho por loja e vendedor
+  -- (`api/gestor/relatorio-desempenho`), cruzado com `captacoes` pela placa.
+  -- Nao ha lista fixa de valores: o relatorio descobre os que existem nos
+  -- dados, pra nao quebrar quando o time criar um status novo no dropdown.
+  status_negociacao text,
   updated_at timestamptz not null default now()
 );
 
@@ -210,8 +228,15 @@ create policy "gestor atualiza" on seguros_indicacao_movida for update
 -- =========================================================================
 -- Migracao: se a tabela `seguros_indicacao_movida` ainda NAO existir em
 -- producao, rode o `create table seguros_indicacao_movida` (com o indice e
--- as 3 policies) acima inteiro - e
--- tudo novo, nao ha `alter table` para rodar em cima de uma versao anterior.
--- Se um dia esta tabela ja existir e precisar de coluna nova, documente o
--- `alter table` aqui do mesmo jeito que e feito para `captacoes` acima.
+-- as 3 policies) acima inteiro.
+--
+-- Se ela JA existir (caso de producao hoje), NAO rode o `create table` de
+-- novo - rode so isto, para o relatorio de desempenho por loja e vendedor:
+--
+--   alter table seguros_indicacao_movida add column status_negociacao text;
+--
+-- Linhas existentes ficam com `status_negociacao = null`; a primeira geracao
+-- de qualquer um dos relatorios ja preenche (a sincronizacao roda antes de
+-- montar o arquivo). Nao precisa de RLS nova - as 3 policies sao por
+-- `app_role`, independentes das colunas.
 -- =========================================================================
