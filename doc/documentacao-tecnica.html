@@ -390,6 +390,7 @@
       <li><a href="#usuarios-por-loja">Utilitário: usuários por loja</a></li>
       <li><a href="#relatorio-seguros">Relatório mensal de seguros por loja</a></li>
       <li><a href="#relatorio-desempenho">Relatório de desempenho por loja e vendedor</a></li>
+      <li><a href="#update-webhook-fallback">Correção: UPDATE do webhook não achava a linha</a></li>
     </ol>
   </nav>
 
@@ -1381,7 +1382,7 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
       <code>app_role</code> e RLS.
     </p>
     <div class="callout warn">
-      <span class="callout-title">Bug pré-existente encontrado (não corrigido aqui)</span>
+      <span class="callout-title">Bug pré-existente encontrado aqui — corrigido na seção 22</span>
       <p>
         Ao conferir as planilhas reais para desenhar esta feature, o cabeçalho de fato está na
         <strong>linha 1</strong> (dados a partir da linha 2) — diferente do comentário histórico no topo de
@@ -1391,7 +1392,8 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
         — um UPDATE (reivindicação de lead) na primeira linha de dados de qualquer uma das 3 planilhas
         provavelmente cai silenciosamente no log de erro em vez de atualizar. O <code>doGet</code> novo desta
         feature já foi escrito lendo a partir da linha correta (2); o bug em <code>encontrarLinhaPorPlaca</code> é
-        pré-existente e ficou só registrado aqui — corrigir é fora do escopo desta mudança.
+        pré-existente e ficou só registrado aqui — corrigir era fora do escopo desta mudança. Ele estourou em
+        produção depois, e foi corrigido na <a href="#update-webhook-fallback">seção 22</a>.
       </p>
     </div>
     <div class="callout info">
@@ -1508,6 +1510,51 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
         espelho das planilhas — o que amplia o alcance da pendência de retenção já registrada (o
         <code>upsert</code> nunca faz <code>delete</code>, então remoção na origem não se propaga). RLS segue
         gestor-only, sem policy nova. Ver <span class="file-ref">LGPD.md</span> seções 2 e 9.
+      </p>
+    </div>
+  </section>
+
+  <section id="update-webhook-fallback">
+    <div class="section-head"><span class="section-num">22</span><h2>Correção: UPDATE do webhook não achava a linha</h2></div>
+    <p>
+      Logo depois de publicar a seção 21, apareceu no log de erro das planilhas:
+    </p>
+    <pre><code>UPDATE sem linha correspondente (placa pode estar em outra planilha): id 899404bc-…</code></pre>
+    <p>
+      Não era o relatório — é o <code>doPost</code>, no caminho de UPDATE (reivindicação de lead pelo portal).
+      O lead era da <strong>Penha</strong>, criado em <strong>22/07</strong>; o remapeamento de lojas subiu em
+      <strong>28/07</strong> e mandou Penha para a planilha 1, mas a linha dele continuava na planilha 3. O
+      <code>doPost</code> procurava a placa <em>só</em> na planilha resolvida pela loja atual, não achava, e
+      registrava o erro em vez de atualizar. O dado em <span class="file-ref">captacoes</span> estava correto o
+      tempo todo — só a planilha ficou desatualizada.
+    </p>
+    <p>Duas correções, as duas em <span class="file-ref">captacoes-to-google-sheets.gs</span>:</p>
+    <table>
+      <thead><tr><th>Causa</th><th>Correção</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Loja mudou de planilha; leads antigos ficaram na planilha original</td>
+          <td>Nova <code>encontrarPlacaEmQualquerPlanilha</code>: procura na planilha da loja atual e, se não
+          achar, nas outras duas — atualiza a linha <strong>onde ela realmente está</strong>. De propósito não
+          move linha entre planilhas, para não mexer em histórico que o time já usa.</td>
+        </tr>
+        <tr>
+          <td>Bug latente da seção 20: <code>encontrarLinhaPorPlaca</code> começava na linha 3, mas os dados
+          começam na 2 — a primeira linha de dados de cada planilha nunca era encontrada</td>
+          <td>Busca começa na <strong>linha 2</strong>. Seguro mesmo se alguma planilha tiver cabeçalho ali: o
+          texto "PLACA" nunca bate com uma placa. O comentário errado no topo do arquivo ("cabeçalho na 2, dados
+          na 3") foi corrigido, com nota de que ele causou este bug.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout info">
+      <span class="callout-title">Consequências</span>
+      <p>
+        O UPDATE ficou mais caro no pior caso: até 3 planilhas abertas em vez de 1 (só quando não acha na
+        primeira). Aceitável para o volume atual, e o caminho comum — lead na planilha da própria loja —
+        continua com uma leitura só. Este arquivo exige <strong>republicar</strong> o Apps Script para valer.
+        O lead da Penha que gerou o log precisa de conserto manual na planilha 3 (placa <code>TCP3C72</code>):
+        a correção evita o problema nas próximas reivindicações, não reprocessa o UPDATE que já falhou.
       </p>
     </div>
   </section>

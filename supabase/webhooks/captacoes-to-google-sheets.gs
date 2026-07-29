@@ -24,10 +24,12 @@
 // roteamento - ver LOJA_PARA_PLANILHA). Ver LGPD.md secao 4.1 para a base
 // legal do fluxo ViaNuvem, diferente do fluxo de indicacao do vendedor.
 //
-// Colunas da aba "Página1" em cada planilha (linha 2 = cabecalho, dados a
-// partir da linha 3) - atualizado em 09/07/2026 apos as 3 planilhas
-// ganharem a coluna "CANAL" (antes era A-I, sem ela; o time preenche
-// manualmente, o webhook so deixa em branco):
+// Colunas da aba "Página1" em cada planilha - atualizado em 09/07/2026 apos as
+// 3 planilhas ganharem a coluna "CANAL" (antes era A-I, sem ela; o time
+// preenche manualmente, o webhook so deixa em branco). Cabecalho na LINHA 1,
+// dados a partir da LINHA 2 (confirmado ao vivo nas 3 planilhas reais - o texto
+// aqui dizia "cabecalho na 2, dados na 3" e estava errado, o que causou um bug
+// real na busca por placa; ver encontrarLinhaPorPlaca):
 //   A DATA | B CANAL | C VENDEDOR | D LOJA | E NOME | F CELULAR
 //   G E-MAIL | H CPF | I PLACA | J STATUS
 //
@@ -133,12 +135,12 @@ const PLANILHA_ERROS = PLANILHAS.william;
 //
 // AO MOVER UMA LOJA DE PLANILHA (como Penha/Vila Guilherme -> everton e Vila
 // Carrao/Vila Ema -> wesley em 28/07/2026): a mudanca vale so para os leads
-// NOVOS. As linhas antigas ficam onde estao (este script nao migra dados). E
-// se um vendedor reivindicar pelo portal um lead antigo dessa loja, o UPDATE
-// vai procurar a placa na planilha NOVA, nao achar, e cair no log de erro
-// ("UPDATE sem linha correspondente") - nesse caso a atualizacao tem que ser
-// feita a mao na planilha antiga. Se isso incomodar, mova/copie as linhas
-// antigas dessas lojas para a planilha nova antes de republicar.
+// NOVOS. As linhas antigas ficam onde estao - este script nao migra dados. O
+// UPDATE (reivindicacao de lead pelo portal) lida com isso: procura a placa na
+// planilha da loja atual e, se nao achar, nas outras duas, atualizando a linha
+// onde ela realmente esta (encontrarPlacaEmQualquerPlanilha). Ou seja, nao ha
+// mais log de erro nesse caso - mas o lead continua fisicamente na planilha
+// antiga. Se quiser tudo junto, mova as linhas a mao.
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Americana': 'everton',
   'Campinas Amoreiras': 'everton',
@@ -231,16 +233,22 @@ function doPost(e) {
       // lead que ja existia (ex.: importado do ViaNuvem) - ver
       // registrar_captacao_vendedor no schema.sql. Atualiza a linha
       // existente em vez de duplicar; NAO mexe em DATA (A) nem STATUS (J,
-      // preenchimento manual do time). So procura na planilha resolvida
-      // pela loja ATUAL do registro - se a loja mudou pra uma planilha
-      // diferente da que a linha original esta, nao tenta mover entre
-      // planilhas (caso raro), so registra no log de erro pra revisao manual.
-      const linha = encontrarLinhaPorPlaca(aba, r.placa);
-      if (linha === -1) {
-        registrarErro('UPDATE sem linha correspondente (placa pode estar em outra planilha): id ' + (r.id || ''), e);
+      // preenchimento manual do time).
+      //
+      // Procura primeiro na planilha resolvida pela loja ATUAL e, se nao
+      // achar, nas outras duas (ver encontrarPlacaEmQualquerPlanilha): quando
+      // uma loja muda de planilha, os leads antigos dela ficam onde estavam, e
+      // sem esse fallback toda reivindicacao de lead antigo dessas lojas caia
+      // no log de erro em vez de atualizar (visto em producao 29/07/2026 com um
+      // lead da Penha, criado antes do remapeamento de 28/07). Atualiza a linha
+      // onde ela realmente esta - de proposito NAO move a linha entre
+      // planilhas, pra nao mexer em historico que o time ja usa.
+      const encontrado = encontrarPlacaEmQualquerPlanilha(aba, r.placa);
+      if (!encontrado) {
+        registrarErro('UPDATE sem linha correspondente em nenhuma das 3 planilhas: id ' + (r.id || ''), e);
         return respostaJson({ ok: false });
       }
-      aba.getRange(linha, 2, 1, 8).setValues([[
+      encontrado.aba.getRange(encontrado.linha, 2, 1, 8).setValues([[
         r.canal || '',       // B CANAL
         r.vendedor_nome,     // C VENDEDOR
         r.loja,              // D LOJA
@@ -369,17 +377,45 @@ function acharColunaPorNome(cabecalhos, nomesCandidatos, indiceFixo) {
   return typeof indiceFixo === 'number' ? indiceFixo : -1;
 }
 
-// Procura pela placa na coluna I (indice 9) a partir da linha 3 (dados
-// comecam depois do cabecalho na linha 2). Retorna o numero da linha (1-based,
-// pronto pra usar em getRange) ou -1 se nao encontrar.
+// Procura pela placa na coluna I (coluna 9, 1-based) a partir da LINHA 2.
+// Retorna o numero da linha (1-based, pronto pra usar em getRange) ou -1.
+//
+// Comecava na linha 3 por causa do comentario historico no topo deste arquivo
+// ("linha 2 = cabecalho, dados a partir da linha 3"), que esta errado: nas 3
+// planilhas reais o cabecalho e a linha 1 e os dados comecam na 2 (confirmado
+// ao vivo, e e assim que o `doGet` le). Com o inicio na 3, a PRIMEIRA linha de
+// dados de cada planilha nunca era encontrada e todo UPDATE nela caia no log de
+// erro. Comecar na 2 e seguro mesmo se alguma planilha tiver cabecalho ali: o
+// texto "PLACA" simplesmente nunca vai bater com uma placa.
 function encontrarLinhaPorPlaca(aba, placa) {
   const ultimaLinha = aba.getLastRow();
-  if (ultimaLinha < 3) return -1;
-  const placas = aba.getRange(3, 9, ultimaLinha - 2, 1).getValues();
+  if (ultimaLinha < 2) return -1;
+  const placas = aba.getRange(2, 9, ultimaLinha - 1, 1).getValues();
   for (let i = 0; i < placas.length; i++) {
-    if (placas[i][0] === placa) return i + 3;
+    if (placas[i][0] === placa) return i + 2;
   }
   return -1;
+}
+
+// Procura a placa na `abaPreferida` (a da loja atual do registro) e, se nao
+// achar, nas outras abas das 3 planilhas. Devolve { aba, linha } ou null.
+// Necessario porque mover uma loja de planilha (LOJA_PARA_PLANILHA) nao move os
+// leads antigos dela: a linha continua na planilha onde foi criada, e e ali que
+// o UPDATE precisa escrever.
+function encontrarPlacaEmQualquerPlanilha(abaPreferida, placa) {
+  const linhaPreferida = encontrarLinhaPorPlaca(abaPreferida, placa);
+  if (linhaPreferida !== -1) return { aba: abaPreferida, linha: linhaPreferida };
+
+  const idPreferido = abaPreferida.getParent().getId();
+  const chaves = Object.keys(PLANILHAS);
+  for (let i = 0; i < chaves.length; i++) {
+    const planilhaId = PLANILHAS[chaves[i]];
+    if (planilhaId === idPreferido) continue; // ja procurada acima
+    const outraAba = getAba(planilhaId, SHEET_NAME);
+    const linha = encontrarLinhaPorPlaca(outraAba, placa);
+    if (linha !== -1) return { aba: outraAba, linha: linha };
+  }
+  return null;
 }
 
 function resolverPlanilhaId(loja) {
