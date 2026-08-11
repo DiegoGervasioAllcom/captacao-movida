@@ -62,8 +62,10 @@ export default function GestorClient({
   pagina,
   tamanhoPagina,
   totalRegistros,
+  mesMetricas,
+  diaMetrica,
   totalCaptacoes,
-  captacoesHoje,
+  captacoesDia,
   vendedoresAtivos,
   transmissoesHoje,
   transmissoesMes,
@@ -73,14 +75,18 @@ export default function GestorClient({
   pagina: number;
   tamanhoPagina: number;
   totalRegistros: number;
+  mesMetricas: string;
+  diaMetrica: string;
   totalCaptacoes: number;
-  captacoesHoje: number;
+  captacoesDia: number;
   vendedoresAtivos: number;
   transmissoesHoje: number;
   transmissoesMes: number;
 }) {
   const router = useRouter();
   const [textoBusca, setTextoBusca] = useState(busca);
+  const [mes, setMes] = useState(mesMetricas);
+  const [dia, setDia] = useState(diaMetrica);
   const [exportando, setExportando] = useState(false);
   const [erroExportacao, setErroExportacao] = useState("");
 
@@ -101,6 +107,8 @@ export default function GestorClient({
 
   // Mantem o campo em sincronia se a busca mudar por fora (ex.: botao voltar do navegador).
   useEffect(() => setTextoBusca(busca), [busca]);
+  useEffect(() => setMes(mesMetricas), [mesMetricas]);
+  useEffect(() => setDia(diaMetrica), [diaMetrica]);
   useEffect(() => setTotalTransmissoesHoje(transmissoesHoje), [
     transmissoesHoje,
   ]);
@@ -125,6 +133,18 @@ export default function GestorClient({
     const qs = new URLSearchParams();
     if (busca) qs.set("busca", busca);
     qs.set("pagina", String(novaPagina));
+    qs.set("mes", mes);
+    qs.set("dia", dia);
+    router.push(`/gestor?${qs.toString()}`);
+  }
+
+  // Filtros de mes/dia das metricas do topo navegam sem resetar a busca/pagina da tabela.
+  function atualizarFiltroMetricas(alteracoes: { mes?: string; dia?: string }) {
+    const qs = new URLSearchParams();
+    if (busca) qs.set("busca", busca);
+    qs.set("pagina", String(pagina));
+    qs.set("mes", alteracoes.mes ?? mes);
+    qs.set("dia", alteracoes.dia ?? dia);
     router.push(`/gestor?${qs.toString()}`);
   }
 
@@ -259,17 +279,48 @@ export default function GestorClient({
 
   return (
     <>
+      <div className="cm-row" style={{ marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+        <label className="cm-row" style={{ gap: 6 }}>
+          <span className="cm-muted" style={{ fontSize: 13 }}>
+            Mes (total e vendedores ativos)
+          </span>
+          <input
+            type="month"
+            className="cm-search"
+            value={mes}
+            onChange={(e) => {
+              setMes(e.target.value);
+              atualizarFiltroMetricas({ mes: e.target.value });
+            }}
+          />
+        </label>
+        <label className="cm-row" style={{ gap: 6 }}>
+          <span className="cm-muted" style={{ fontSize: 13 }}>
+            Dia (captacoes)
+          </span>
+          <input
+            type="date"
+            className="cm-search"
+            value={dia}
+            onChange={(e) => {
+              setDia(e.target.value);
+              atualizarFiltroMetricas({ dia: e.target.value });
+            }}
+          />
+        </label>
+      </div>
+
       <div className="cm-stats">
         <div className="cm-stat">
-          <div className="cm-stat-label">Total de captacoes</div>
+          <div className="cm-stat-label">Total de captacoes no mes</div>
           <div className="cm-stat-value">{totalCaptacoes}</div>
         </div>
         <div className="cm-stat">
-          <div className="cm-stat-label">Captacoes de hoje</div>
-          <div className="cm-stat-value">{captacoesHoje}</div>
+          <div className="cm-stat-label">Captacoes do dia</div>
+          <div className="cm-stat-value">{captacoesDia}</div>
         </div>
         <div className="cm-stat">
-          <div className="cm-stat-label">Vendedores ativos</div>
+          <div className="cm-stat-label">Vendedores ativos no mes</div>
           <div className="cm-stat-value">{vendedoresAtivos}</div>
         </div>
       </div>
