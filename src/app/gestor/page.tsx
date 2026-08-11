@@ -18,17 +18,6 @@ import type { Captacao } from "@/lib/types";
 
 const TAMANHO_PAGINA = 25;
 
-/** Meia-noite de "hoje" no fuso do Brasil (fixo em -03:00, sem horario de verao desde 2019), como ISO p/ comparar com `timestamptz`. */
-function inicioDoDiaBrasilISO(): string {
-  const hojeBr = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  return `${hojeBr}T00:00:00-03:00`;
-}
-
 /** Data de hoje em Sao Paulo no formato da coluna `date` do Supabase. */
 function hojeBrasil(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -58,10 +47,36 @@ function limitesMesAtualBrasil(dataHoje: string): {
   return { inicio, fim };
 }
 
+/** "YYYY-MM" do mes atual no fuso do Brasil, valor default dos filtros mensais das metricas. */
+function mesAtualBrasil(): string {
+  return hojeBrasil().slice(0, 7);
+}
+
+/** Limites exclusivos (ISO timestamptz) de um mes "YYYY-MM" no fuso do Brasil, p/ comparar com `created_at`. */
+function limitesMesBrasilISO(mes: string): { inicio: string; fim: string } {
+  const [ano, mesNum] = mes.split("-").map(Number);
+  const inicio = `${mes}-01T00:00:00-03:00`;
+  const fim = `${new Date(Date.UTC(ano, mesNum, 1)).toISOString().slice(0, 10)}T00:00:00-03:00`;
+  return { inicio, fim };
+}
+
+/** Limites exclusivos (ISO timestamptz) de um dia "YYYY-MM-DD" no fuso do Brasil, p/ comparar com `created_at`. */
+function limitesDiaBrasilISO(dia: string): { inicio: string; fim: string } {
+  return {
+    inicio: `${dia}T00:00:00-03:00`,
+    fim: `${somarDias(dia, 1)}T00:00:00-03:00`,
+  };
+}
+
 export default async function GestorPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pagina?: string; busca?: string }>;
+  searchParams: Promise<{
+    pagina?: string;
+    busca?: string;
+    mes?: string;
+    dia?: string;
+  }>;
 }) {
   const { userId, sessionClaims } = await auth();
   if (!userId) redirect("/sign-in");
@@ -72,11 +87,17 @@ export default async function GestorPage({
   const params = await searchParams;
   const pagina = Math.max(1, Number(params.pagina) || 1);
   const busca = (params.busca ?? "").trim();
+  const mesMetricas = /^\d{4}-\d{2}$/.test(params.mes ?? "")
+    ? (params.mes as string)
+    : mesAtualBrasil();
+  const diaMetrica = /^\d{4}-\d{2}-\d{2}$/.test(params.dia ?? "")
+    ? (params.dia as string)
+    : hojeBrasil();
 
   let captacoes: Captacao[] = [];
   let totalRegistros = 0;
   let totalCaptacoes = 0;
-  let captacoesHoje = 0;
+  let captacoesDia = 0;
   let vendedoresAtivos = 0;
   let transmissoesHoje = 0;
   let transmissoesMes = 0;
@@ -96,22 +117,33 @@ export default async function GestorPage({
     const dataHoje = hojeBrasil();
     const amanha = somarDias(dataHoje, 1);
     const mesAtual = limitesMesAtualBrasil(dataHoje);
+    const limitesMesMetricas = limitesMesBrasilISO(mesMetricas);
+    const limitesDiaMetrica = limitesDiaBrasilISO(diaMetrica);
 
     const [
       { data, count, error },
       { count: countTotal, error: erroTotal },
-      { count: countHoje, error: erroHoje },
+      { count: countDia, error: erroDia },
       { data: dadosVendedores, error: erroVendedores },
       { count: countTransmissoesHoje, error: erroTransmissoesHoje },
       { count: countTransmissoesMes, error: erroTransmissoesMes },
     ] = await Promise.all([
       query.order("created_at", { ascending: false }).range(de, de + TAMANHO_PAGINA - 1),
-      supabase.from("captacoes").select("id", { count: "exact", head: true }),
       supabase
         .from("captacoes")
         .select("id", { count: "exact", head: true })
-        .gte("created_at", inicioDoDiaBrasilISO()),
-      supabase.from("captacoes").select("vendedor_id"),
+        .gte("created_at", limitesMesMetricas.inicio)
+        .lt("created_at", limitesMesMetricas.fim),
+      supabase
+        .from("captacoes")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", limitesDiaMetrica.inicio)
+        .lt("created_at", limitesDiaMetrica.fim),
+      supabase
+        .from("captacoes")
+        .select("vendedor_id")
+        .gte("created_at", limitesMesMetricas.inicio)
+        .lt("created_at", limitesMesMetricas.fim),
       supabase
         .from("seguros_indicacao_movida")
         .select("id", { count: "exact", head: true })
@@ -127,7 +159,7 @@ export default async function GestorPage({
     if (
       error ||
       erroTotal ||
-      erroHoje ||
+      erroDia ||
       erroVendedores ||
       erroTransmissoesHoje ||
       erroTransmissoesMes
@@ -137,7 +169,7 @@ export default async function GestorPage({
       captacoes = (data ?? []) as Captacao[];
       totalRegistros = count ?? 0;
       totalCaptacoes = countTotal ?? 0;
-      captacoesHoje = countHoje ?? 0;
+      captacoesDia = countDia ?? 0;
       vendedoresAtivos = new Set(
         (dadosVendedores ?? []).map((v) => v.vendedor_id)
       ).size;
@@ -170,8 +202,10 @@ export default async function GestorPage({
             pagina={pagina}
             tamanhoPagina={TAMANHO_PAGINA}
             totalRegistros={totalRegistros}
+            mesMetricas={mesMetricas}
+            diaMetrica={diaMetrica}
             totalCaptacoes={totalCaptacoes}
-            captacoesHoje={captacoesHoje}
+            captacoesDia={captacoesDia}
             vendedoresAtivos={vendedoresAtivos}
             transmissoesHoje={transmissoesHoje}
             transmissoesMes={transmissoesMes}
