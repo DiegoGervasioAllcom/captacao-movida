@@ -2,8 +2,8 @@
 # vianuvem-import - roda como job pontual (nao um servico de longa duracao):
 #   docker compose build
 #   docker compose run --rm importer
-# Sem "up -d"/restart policy de proposito - o cron dispara "run" 1x por
-# hora, cada execucao sobe o container, roda, e derruba sozinha (--rm).
+# Sem "up -d"/restart policy de proposito - o cron dispara "run" a cada 20
+# minutos, cada execucao sobe o container, roda, e derruba sozinha (--rm).
 # =========================================================================
 services:
   importer:

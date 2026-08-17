@@ -391,6 +391,7 @@
       <li><a href="#relatorio-seguros">Relatório mensal de seguros por loja</a></li>
       <li><a href="#relatorio-desempenho">Relatório de desempenho por loja e vendedor</a></li>
       <li><a href="#update-webhook-fallback">Correção: UPDATE do webhook não achava a linha</a></li>
+      <li><a href="#cron-20min-login">Cron de 20 min e o login que não submetia</a></li>
     </ol>
   </nav>
 
@@ -555,7 +556,7 @@
       <span class="file-ref">vianuvem-import/</span>, que faz login automatizado no sistema de terceiros
       <strong>ViaNuvem/Unico Auto</strong> (usado pelas lojas para gestão de processos de financiamento/consórcio
       de veículos), exporta os <em>"Processos que atuo"</em> e insere os novos como leads em <code>captacoes</code>,
-      de hora em hora.
+      a cada 20 minutos (de hora em hora até 17/08/2026 — ver seção 23).
     </p>
 
     <h3>Decisões de projeto (e por quê)</h3>
@@ -670,7 +671,7 @@ sudo systemctl enable --now cron</code></pre>
     <pre><code>sudo crontab -e
 
 # adicionar:
-0 * * * * cd /home/supperadmin/captacao-movida/vianuvem-import && /usr/bin/docker compose run --rm importer >> /var/log/vianuvem-import.log 2>&1</code></pre>
+*/20 * * * * { cd /home/supperadmin/captacao-movida/vianuvem-import && /usr/bin/flock -n /tmp/vianuvem-import.lock /usr/bin/docker compose run --rm importer ; } >> /var/log/vianuvem-import.log 2>&1</code></pre>
     <p>Caminho do binário do Docker sempre absoluto (<code>which docker</code>) — o <code>PATH</code> do cron é
        muito mais curto que o de um shell interativo.</p>
 
@@ -788,7 +789,7 @@ docker compose run --rm importer   # checagem manual antes de deixar o cron roda
       <span class="callout-title">Estado atual</span>
       <p>Pipeline completo validado em produção: login → clique em Exportar/Processos → download → parse →
          dedupe por placa → insert no Supabase → Database Webhook → planilha certa do Google Sheets, com CPF e
-         e-mail preenchidos. Rodando via cron de hora em hora desde 08/07/2026.</p>
+         e-mail preenchidos. Rodando via cron desde 08/07/2026 (a cada 20 minutos desde 17/08/2026).</p>
     </div>
   </section>
 
@@ -1555,6 +1556,105 @@ node --env-file=.env.production scripts/usuarios-por-loja.mjs</code></pre>
         continua com uma leitura só. Este arquivo exige <strong>republicar</strong> o Apps Script para valer.
         O lead da Penha que gerou o log precisa de conserto manual na planilha 3 (placa <code>TCP3C72</code>):
         a correção evita o problema nas próximas reivindicações, não reprocessa o UPDATE que já falhou.
+      </p>
+    </div>
+  </section>
+
+  <section id="cron-20min-login">
+    <div class="section-head"><span class="section-num">23</span><h2>Cron de 20 min e o login que não submetia</h2></div>
+    <p>
+      O importador do ViaNuvem passou de <strong>1x por hora</strong> para <strong>a cada 20 minutos</strong>
+      (:00, :20, :40) em <strong>17/08/2026</strong>. O agendamento não vive no código — é o
+      <code>crontab</code> do root no servidor que dispara <code>docker compose run --rm importer</code>. A
+      mudança expôs dois problemas, um de operação e um de código.
+    </p>
+
+    <h3>Problema 1 — o job parou de rodar (log vazio)</h3>
+    <p>
+      Depois de editar o crontab, a planilha parou de receber leads e
+      <code>tail /var/log/vianuvem-import.log</code> não devolvia <em>nada</em>. A linha tinha ficado com o
+      caminho de exemplo literal:
+    </p>
+    <pre><code>*/20 * * * * cd /caminho/completo/captacao-movida/vianuvem-import && ... >> /var/log/vianuvem-import.log 2>&1</code></pre>
+    <p>
+      O <code>cd</code> falhava, o <code>&&</code> cortava o resto, e o importador não rodou nenhuma vez —
+      último log real de 15/08, zerado pela rotação de 16/08. O que tornou o diagnóstico lento foi o
+      <strong>log vazio em vez do erro</strong>: com o <code>&gt;&gt;</code> grudado apenas no último comando da
+      linha, a mensagem "No such file or directory" do <code>cd</code> foi para o e-mail do cron, que sem MTA no
+      servidor é descartado. A linha corrigida agrupa tudo com <code>{ … ; }</code> e usa <code>flock -n</code>
+      para impedir execuções sobrepostas (relevante agora que o intervalo é curto):
+    </p>
+    <pre><code>*/20 * * * * { cd /home/supperadmin/captacao-movida/vianuvem-import && /usr/bin/flock -n /tmp/vianuvem-import.lock /usr/bin/docker compose run --rm importer ; } >> /var/log/vianuvem-import.log 2>&1</code></pre>
+    <p>
+      Nota de ambiente: este Ubuntu não tem <code>/var/log/syslog</code> — para auditar o cron use
+      <code>sudo journalctl -u cron --since today</code>.
+    </p>
+
+    <h3>Problema 2 — "ainda na tela de login", intermitente</h3>
+    <p>
+      Falha antiga, que a seção 08 havia atribuído a lentidão do site (timeout de 10s → 30s). Os prints de
+      diagnóstico mostraram que a explicação estava incompleta. Em todas as falhas de 07/08:
+    </p>
+    <table>
+      <thead><tr><th>Evidência</th><th>O que elimina</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Texto da tela = formulário de login intacto, <strong>sem</strong> mensagem de erro do site</td>
+          <td>Senha errada (o site exibiria o aviso)</td>
+        </tr>
+        <tr>
+          <td>Nenhum sinal de reCAPTCHA ou verificação adicional</td>
+          <td>Bloqueio antibot</td>
+        </tr>
+        <tr>
+          <td>Print sempre em <code>:00:34</code>–<code>:00:35</code>, ~35s após o disparo do cron</td>
+          <td>Nada: confirma que os 30s do <code>waitForURL</code> estouraram inteiros — o submit nunca foi
+          processado</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Causa:</strong> o site é uma SPA e o <code>goto</code> usa <code>waitUntil:
+      "domcontentloaded"</code>. O React hidrata depois, então podia re-renderizar o formulário <em>após</em> o
+      <code>fill</code> — limpando o que foi digitado, e o submit ia vazio — ou receber o clique antes do handler
+      estar ligado, deixando o botão inerte. Com o servidor rápido, a hidratação vinha antes do <code>fill</code>
+      e tudo funcionava; daí a intermitência.
+    </p>
+    <p>Correção em <span class="file-ref">vianuvem-import/importar.mjs</span>:</p>
+    <table>
+      <thead><tr><th>Função</th><th>O que faz</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>preencherCredenciais()</code></td>
+          <td>Digita, espera 500 ms e <strong>relê os campos</strong>; re-digita se o valor evaporou (até 3
+          tentativas). Compara apenas o <em>tamanho</em> da senha, nunca o valor, para não vazar em log ou
+          mensagem de erro.</td>
+        </tr>
+        <tr>
+          <td><code>submeterLogin()</code></td>
+          <td>Confirma que o POST de login <strong>saiu de fato</strong>, filtrando pelo host do próprio site
+          (a página dispara POSTs de rastreamento do Facebook/LinkedIn que não têm relação com o login). Se o
+          clique não produzir requisição, tenta <code>Enter</code> no campo de senha.</td>
+        </tr>
+        <tr>
+          <td>Mensagem de erro</td>
+          <td>Passa a informar <code>submit enviado ao site: sim/nao</code>, separando "a página não reagiu"
+          de "o site recusou o login". Era essa ambiguidade que tornava o diagnóstico lento.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <span class="callout-title">Consequências e o que observar</span>
+      <p>
+        Como sempre neste job, código novo exige <code>docker compose build</code> — <code>git pull</code>
+        sozinho não muda o container (seção 08). Dois efeitos da frequência maior: o log cresce 3x mais rápido
+        (o <code>logrotate</code> diário cobre) e os <code>debug/*.png</code>, que não são rotacionados e nascem
+        com dono <code>root</code>, acumulam na mesma proporção — a limpeza precisa de <code>sudo</code> e vale
+        automatizar. Mais importante: cada execução faz um <strong>login novo do zero</strong>, ou seja ~72
+        logins/dia na mesma conta e IP, contra 24 antes. Se voltarem falhas com <code>submit enviado ao site:
+        sim</code>, a causa passa a ser o site recusando, e a correção estrutural é reaproveitar a sessão
+        (<code>storageState</code> do Playwright em volume, refazendo login só quando o cookie expirar).
       </p>
     </div>
   </section>
