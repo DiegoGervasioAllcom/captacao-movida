@@ -190,6 +190,78 @@ function resumoRespostaRelatorio(resp) {
   return JSON.stringify({ ...resp, fullSignedURL: resp.fullSignedURL ? "[presente]" : resp.fullSignedURL });
 }
 
+// Preenche o formulario e CONFERE se o valor ficou de verdade. O site e uma
+// SPA: como o goto usa "domcontentloaded", o React pode hidratar/re-renderizar
+// o formulario DEPOIS do fill e limpar o que foi digitado - o campo existe no
+// DOM, o fill nao da erro, mas o submit vai vazio. Diagnosticado em producao
+// (07/08/2026): prints de falha mostravam a tela de login intacta, sem nenhuma
+// mensagem de erro do site e sem reCAPTCHA, com os 30s do waitForURL inteiros
+// estourando - ou seja, o submit nunca foi processado. Por isso: espera o
+// campo ficar editavel, digita, e re-digita se o valor tiver evaporado.
+async function preencherCredenciais(page, usuario, senha) {
+  const MAX_TENTATIVAS_FILL = 3;
+  const campoUsuario = page.locator("#username");
+  const campoSenha = page.locator("#password");
+
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS_FILL; tentativa += 1) {
+    // O locator.fill() ja espera o campo estar visivel e editavel (o
+    // page.fill() antigo tambem, mas sem o loop de conferencia abaixo).
+    await campoUsuario.waitFor({ state: "visible", timeout: 30000 });
+    await campoUsuario.fill(usuario);
+    await campoSenha.fill(senha);
+
+    // Folga curta pra uma re-renderizacao tardia se manifestar AQUI (onde da
+    // pra corrigir) em vez de so no submit (onde a falha fica muda).
+    await page.waitForTimeout(500);
+
+    // Compara so o TAMANHO da senha - nunca o valor, que nao pode vazar pra
+    // log nem pra mensagem de erro (LGPD/segredo).
+    const usuarioOk = (await campoUsuario.inputValue()) === usuario;
+    const senhaOk = (await campoSenha.inputValue()).length === senha.length;
+    if (usuarioOk && senhaOk) return;
+
+    console.warn(
+      `[vianuvem-import] Campos de login limpos apos digitar (tentativa ${tentativa}/${MAX_TENTATIVAS_FILL}) - re-digitando.`
+    );
+  }
+
+  throw new Error(
+    "Nao foi possivel preencher as credenciais: o formulario limpou os campos " +
+      `apos ${MAX_TENTATIVAS_FILL} tentativas.`
+  );
+}
+
+// Clica em Entrar e confirma que o submit REALMENTE saiu pela rede. Um clique
+// que chega antes do handler do React estar ligado nao faz nada, e sem essa
+// checagem a falha fica indistinguivel de "senha errada". Filtra pelo host do
+// proprio site porque a pagina dispara POSTs de rastreamento (Facebook,
+// LinkedIn) que nao tem nada a ver com o login. Se o clique nao produzir
+// requisicao, tenta Enter no campo de senha como segundo caminho.
+async function submeterLogin(page) {
+  const host = new URL(URL_LOGIN).host;
+  const esperarPost = () =>
+    page
+      .waitForRequest((r) => r.method() === "POST" && new URL(r.url()).host === host, {
+        timeout: 15000,
+      })
+      .then(() => true)
+      .catch(() => false);
+
+  const botao = page.locator('button[type="submit"]');
+  await botao.waitFor({ state: "visible", timeout: 30000 });
+
+  let postDoLogin = esperarPost();
+  await botao.click();
+  if (await postDoLogin) return true;
+
+  console.warn(
+    "[vianuvem-import] Clique em Entrar nao gerou requisicao - tentando Enter no campo de senha."
+  );
+  postDoLogin = esperarPost();
+  await page.locator("#password").press("Enter");
+  return postDoLogin;
+}
+
 async function autenticarEBaixarSignedUrl(usuario, senha) {
   // VIANUVEM_HEADLESS=false roda com o navegador visivel (util pra depurar
   // localmente, ex.: descobrir se um desafio do reCAPTCHA aparece). Em
@@ -217,9 +289,8 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     // formulario de login estar pronto - confirmado com erro real de
     // timeout em producao (ver memoria do projeto).
     await page.goto(URL_LOGIN, { waitUntil: "domcontentloaded" });
-    await page.fill("#username", usuario);
-    await page.fill("#password", senha);
-    await page.click('button[type="submit"]');
+    await preencherCredenciais(page, usuario, senha);
+    const submeteu = await submeterLogin(page);
 
     // Espera ATIVAMENTE sair de /login (login real pode demorar mais que um
     // tempo fixo curto pra processar+redirecionar) em vez de um sleep cego -
@@ -234,10 +305,19 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     const url = page.url();
     if (url.includes("/login")) {
       const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-login");
+      // Diz se o submit chegou a sair pela rede: se NAO saiu, o problema e a
+      // pagina (nao reagiu ao clique/Enter); se saiu e continuamos no /login,
+      // ai sim e o site recusando (senha, verificacao adicional, reCAPTCHA).
       throw new Error(
-        "Login nao concluido (ainda na tela de login - possivel senha errada, " +
-          "verificacao adicional, ou o reCAPTCHA pontuou a sessao como suspeita). " +
-          diagnostico
+        `Login nao concluido (ainda na tela de login; submit enviado ao site: ${
+          submeteu ? "sim" : "nao"
+        }${
+          submeteu
+            ? " - possivel senha errada, verificacao adicional, ou o reCAPTCHA " +
+              "pontuou a sessao como suspeita"
+            : " - a pagina nao reagiu ao clique/Enter, provavel corrida com a " +
+              "renderizacao do formulario"
+        }). ${diagnostico}`
       );
     }
 
