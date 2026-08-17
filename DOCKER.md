@@ -3,7 +3,7 @@
 Imagem enxuta de Next.js 15 usando **multi-stage** + output **`standalone`** (só o runtime necessário). Usuário não-root, healthcheck incluído.
 
 > O projeto tem **duas** imagens Docker: esta (o app web) e a do job de
-> importação `vianuvem-import/` (base Playwright, cron de hora em hora,
+> importação `vianuvem-import/` (base Playwright, cron a cada 20 minutos,
 > regras próprias) — ver `vianuvem-import/README.md`.
 
 ## Arquivos
