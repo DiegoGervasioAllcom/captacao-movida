@@ -323,7 +323,15 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
 
     console.log("[vianuvem-import] Login OK. Clicando em Exportar > Processos...");
 
-    let dadosResposta = await clicarExportarProcessos(page);
+    let dadosResposta;
+    try {
+      dadosResposta = await clicarExportarProcessos(page);
+    } catch (err) {
+      // Sem isso, um timeout aqui (ex.: site lento nesse endpoint) virava
+      // uma falha muda - nenhum print, so o erro cru do Playwright no log.
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-clique-exportar");
+      throw new Error(`Falha ao clicar em Exportar > Processos: ${err.message}. ${diagnostico}`);
+    }
     let tentativas = 0;
     const MAX_TENTATIVAS = 24; // 24 x 5s = 2 minutos
     console.log(`[vianuvem-import] Resposta inicial: ${resumoRespostaRelatorio(dadosResposta)}`);
