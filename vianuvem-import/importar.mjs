@@ -174,9 +174,12 @@ async function capturarDiagnosticoDeFalha(page, rotulo) {
 // depender de algum estado que so existe navegando/clicando na tela
 // normalmente, entao deixamos o proprio Playwright fazer o clique real).
 async function clicarExportarProcessos(page) {
+  // 30s dava timeout em producao com o site so um pouco mais lento (visto
+  // em 3 execucoes seguidas do cron) mesmo com o clique tendo saido normal -
+  // 60s da a mesma folga que ja usamos no polling do relatorio assincrono.
   const respostaPromise = page.waitForResponse(
     (r) => r.url().includes("search/report/workflows") && r.request().method() === "POST",
-    { timeout: 30000 }
+    { timeout: 60000 }
   );
   await page.getByRole("button", { name: "Exportar" }).click();
   await page.getByRole("button", { name: "Processos" }).click();
@@ -323,7 +326,15 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
 
     console.log("[vianuvem-import] Login OK. Clicando em Exportar > Processos...");
 
-    let dadosResposta = await clicarExportarProcessos(page);
+    let dadosResposta;
+    try {
+      dadosResposta = await clicarExportarProcessos(page);
+    } catch (err) {
+      // Sem isso, um timeout aqui (ex.: site lento nesse endpoint) virava
+      // uma falha muda - nenhum print, so o erro cru do Playwright no log.
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-clique-exportar");
+      throw new Error(`Falha ao clicar em Exportar > Processos: ${err.message}. ${diagnostico}`);
+    }
     let tentativas = 0;
     const MAX_TENTATIVAS = 24; // 24 x 5s = 2 minutos
     console.log(`[vianuvem-import] Resposta inicial: ${resumoRespostaRelatorio(dadosResposta)}`);
