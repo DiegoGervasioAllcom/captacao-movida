@@ -120,6 +120,7 @@ const PLANILHAS = {
   everton: '1R8dMI4OIo-BGPfajWq4tctu5ww4QH3JYh5sXbL32Fd0', // SUPPER MOVIDA 1 - EVERTON
   wesley: '1c_lDJC-63fYYXhHCdo59JIhF83Or_IWIlP24rVzYm8M',  // SUPPER MOVIDA 2 - WESLEY
   william: '1FRfqCU-xyNsB0BGPRcXh4-mQ9_ze0zai-D8OdHSonjg', // SUPPER MOVIDA 3 - WILLIAM
+  lojaWeb: '1rOVCzW4rI7Z_5s993NxKMT2W9NN4Jghhg1BbSns6Eh0', // LOJA WEB
 };
 
 // Planilha usada so para o log de erro (ex.: loja sem mapeamento). Reusa a
@@ -177,6 +178,8 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sao Paulo Radial Leste': 'william', // apelido ViaNuvem
   'Sao Miguel': 'william',
   'Sao Miguel Paulista': 'william', // apelido ViaNuvem
+
+  'Loja Web': 'lojaWeb',
 });
 
 function doPost(e) {

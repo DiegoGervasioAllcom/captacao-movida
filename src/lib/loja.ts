@@ -33,7 +33,7 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
 }
 
 /**
- * As 21 lojas que ja tem planilha de destino mapeada em
+ * As 22 lojas que ja tem planilha de destino mapeada em
  * supabase/webhooks/captacoes-to-google-sheets.gs (LOJA_PARA_PLANILHA) -
  * contando uma vez cada loja real, ignorando os apelidos do ViaNuvem que
  * apontam pra essa mesma loja. Usada no select de loja do autocadastro do
@@ -53,6 +53,7 @@ export const LOJAS_DISPONIVEIS = [
   "Campinas Shop Dom Pedro",
   "Itaim Paulista",
   "Jundiaí",
+  "Loja Web",
   "Mogi das Cruzes",
   "Penha",
   "Praia Grande",
@@ -104,6 +105,7 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Campinas - Shopping Dom Pedro": "Campinas Shop Dom Pedro",
     "Seminovos Movida Campinas Shopping Dom Pedro": "Campinas Shop Dom Pedro",
     Jundiai: "Jundiaí",
+    "Loja Web": "Loja Web",
     "Praia Grande": "Praia Grande",
     "Seminovos Movida Praia Grande - Sp": "Praia Grande",
     Santos: "Santos",
