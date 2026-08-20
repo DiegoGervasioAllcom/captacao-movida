@@ -26,7 +26,7 @@ import {
 // =========================================================================
 // Relatorio mensal de seguros por loja (download .xlsx no painel do gestor).
 //
-// 1. Busca no endpoint `doGet` do Apps Script (as 3 planilhas Google Sheets
+// 1. Busca no endpoint `doGet` do Apps Script (as planilhas Google Sheets
 //    que o Database Webhook ja alimenta - ver captacoes-to-google-sheets.gs)
 //    todas as linhas com placa. (Ate o relatorio de desempenho existir, so
 //    vinham as linhas com STATUS DA VENDA preenchido; este relatorio segue

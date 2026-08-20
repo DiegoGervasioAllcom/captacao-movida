@@ -1,11 +1,11 @@
 // =========================================================================
 // Captacao Movida - Destino do Database Webhook: Google Sheets
-// (roteado por loja para 3 planilhas diferentes)
+// (roteado por loja para planilhas diferentes - ver PLANILHAS abaixo)
 //
 // Recebe o POST que o Database Webhook do Supabase dispara a cada INSERT ou
 // UPDATE em `captacoes` (ver README.md secao "4. Configurar o Database
 // Webhook" - o webhook precisa estar configurado para OS DOIS eventos, nao
-// so Insert), descobre em qual das 3 planilhas a loja do vendedor cai
+// so Insert), descobre em qual planilha a loja do vendedor cai
 // (LOJA_PARA_PLANILHA abaixo) e adiciona (INSERT) ou atualiza (UPDATE) uma
 // linha la. O UPDATE acontece quando um vendedor "reivindica" pelo portal
 // um lead que ja existia (ex.: importado do ViaNuvem) - ver
@@ -39,8 +39,8 @@
 //   2. Apague o conteudo de Code.gs e cole este arquivo inteiro.
 //   3. Rode setupSheet() uma vez (menu Executar > selecione "setupSheet").
 //      Isso vai pedir autorizacao para acessar suas planilhas do Google -
-//      aceite. Cria so a aba de log de erro; NAO mexe nas 3 abas "Página1"
-//      (elas ja existem com dados reais).
+//      aceite. Cria so a aba de log de erro; NAO mexe nas abas "Página1"
+//      das planilhas listadas em PLANILHAS (elas ja existem com dados reais).
 //   4. Icone de engrenagem (Configuracoes do projeto) > Propriedades do
 //      script > adicione WEBHOOK_SECRET com um valor aleatorio (ex.: gere
 //      com `openssl rand -hex 16` no terminal). Esse segredo NUNCA vai no
@@ -81,7 +81,7 @@
 // de acesso/retencao (regra de ouro 9 do CLAUDE.md).
 //
 // ENDPOINT `doGet` - leitura para o relatorio de seguros por loja: o time
-// de seguros preenche manualmente, nas mesmas 3 planilhas, colunas alem do
+// de seguros preenche manualmente, nas mesmas planilhas, colunas alem do
 // contrato A-J documentado acima (OBS, DATA DA VENDA, STATUS DA VENDA,
 // PREMIO LIQUIDO, SEGURADORA, MOTIVO). O `doGet` le essas colunas por NOME
 // do cabecalho (linha 1, normalizado com a mesma `normalizarTexto` usada
@@ -248,7 +248,7 @@ function doPost(e) {
       // planilhas, pra nao mexer em historico que o time ja usa.
       const encontrado = encontrarPlacaEmQualquerPlanilha(aba, r.placa);
       if (!encontrado) {
-        registrarErro('UPDATE sem linha correspondente em nenhuma das 3 planilhas: id ' + (r.id || ''), e);
+        registrarErro('UPDATE sem linha correspondente em nenhuma das planilhas: id ' + (r.id || ''), e);
         return respostaJson({ ok: false });
       }
       encontrado.aba.getRange(encontrado.linha, 2, 1, 8).setValues([[
@@ -401,7 +401,7 @@ function encontrarLinhaPorPlaca(aba, placa) {
 }
 
 // Procura a placa na `abaPreferida` (a da loja atual do registro) e, se nao
-// achar, nas outras abas das 3 planilhas. Devolve { aba, linha } ou null.
+// achar, nas outras abas das demais planilhas. Devolve { aba, linha } ou null.
 // Necessario porque mover uma loja de planilha (LOJA_PARA_PLANILHA) nao move os
 // leads antigos dela: a linha continua na planilha onde foi criada, e e ali que
 // o UPDATE precisa escrever.
@@ -447,8 +447,8 @@ function normalizarChavesDoMapa(mapa) {
 }
 
 // Roda uma vez manualmente (menu Executar) para criar a aba de log de erro.
-// Nao cria nem altera as abas "Página1" das 3 planilhas - elas ja existem
-// com dados reais. Autoriza o script a acessar as 3 planilhas.
+// Nao cria nem altera as abas "Página1" das planilhas listadas em PLANILHAS
+// - elas ja existem com dados reais. Autoriza o script a acessar todas elas.
 function setupSheet() {
   Object.keys(PLANILHAS).forEach((chave) => getAba(PLANILHAS[chave], SHEET_NAME));
   getOuCriarAba(PLANILHA_ERROS, ERROS_SHEET_NAME, ['Data/Hora', 'Erro', 'ID do registro (se disponível)']);

@@ -26,7 +26,7 @@ import {
 // =========================================================================
 // Relatorio de desempenho por LOJA e VENDEDOR (download .xlsx no painel do
 // gestor). Mesmo fluxo do relatorio de seguros: clicar sincroniza o banco a
-// partir das 3 planilhas e depois monta o arquivo.
+// partir das planilhas e depois monta o arquivo.
 //
 // 1. Le o `doGet` do Apps Script e sincroniza `seguros_indicacao_movida` -
 //    tanto as colunas de seguro quanto `status_negociacao` (coluna J STATUS:
