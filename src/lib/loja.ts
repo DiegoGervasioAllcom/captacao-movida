@@ -114,6 +114,7 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Seminovos Movida Suzano": "Suzano",
     "Seminovos Movida Suzano - Sp": "Suzano",
     Taubate: "Taubaté",
+    "Seminovos Movida Auto Shopping Taubate": "Taubaté",
     "Guarulhos Timoteo Penteado": "Timóteo Penteado",
     "Timoteo Penteado": "Timóteo Penteado",
     "Mogi das Cruzes": "Mogi das Cruzes",

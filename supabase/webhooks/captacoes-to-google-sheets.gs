@@ -164,6 +164,7 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Seminovos Movida Suzano': 'wesley', // apelido ViaNuvem (limparNomeLoja nao remove o prefixo "Seminovos")
   'Seminovos Movida Suzano - Sp': 'wesley', // apelido ViaNuvem (variacao com "- SP", como em Praia Grande)
   'Taubate': 'wesley',
+  'Seminovos Movida Auto Shopping Taubate': 'wesley', // apelido ViaNuvem
   'Guarulhos Timoteo Penteado': 'wesley',
   'Timoteo Penteado': 'wesley', // apelido: planilha "Dados Vendedores por Loja" omite "Guarulhos"
   'Mogi das Cruzes': 'wesley',
