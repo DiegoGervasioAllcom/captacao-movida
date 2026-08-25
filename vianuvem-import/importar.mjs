@@ -181,6 +181,14 @@ async function clicarExportarProcessos(page) {
     (r) => r.url().includes("search/report/workflows") && r.request().method() === "POST",
     { timeout: 60000 }
   );
+  // Sem isso, uma rejeicao dessa promise ENQUANTO os cliques abaixo ainda
+  // estao em andamento (ex.: pagina/contexto fecha no meio do caminho) conta
+  // como unhandled rejection pro Node e mata o processo inteiro antes do
+  // "await respostaPromise" e do try/catch em autenticarEBaixarSignedUrl -
+  // visto em producao (24/08/2026) como "Target page, context or browser has
+  // been closed" sem print de diagnostico. O catch vazio so marca a promise
+  // como tratada; o await abaixo continua lancando o erro normalmente.
+  respostaPromise.catch(() => {});
   await page.getByRole("button", { name: "Exportar" }).click();
   await page.getByRole("button", { name: "Processos" }).click();
   const resposta = await respostaPromise;
