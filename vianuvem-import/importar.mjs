@@ -189,8 +189,15 @@ async function clicarExportarProcessos(page) {
   // been closed" sem print de diagnostico. O catch vazio so marca a promise
   // como tratada; o await abaixo continua lancando o erro normalmente.
   respostaPromise.catch(() => {});
-  await page.getByRole("button", { name: "Exportar" }).click();
-  await page.getByRole("button", { name: "Processos" }).click();
+  // force: true porque um popup de marketing do HubSpot
+  // (#hs-interactives-modal-overlay) e a nav fixa do site cobrem o botao de
+  // tempos em tempos e fazem a checagem normal de "recebe eventos de
+  // ponteiro" do Playwright nunca estabilizar - visto em producao
+  // (25/08/2026) travando ~30s em dezenas de tentativas ate desistir. Nao
+  // tem relacao com o fluxo de exportacao, entao clicar direto no botao
+  // certo (ja confirmado visivel/habilitado antes disso) e seguro.
+  await page.getByRole("button", { name: "Exportar" }).click({ force: true });
+  await page.getByRole("button", { name: "Processos" }).click({ force: true });
   const resposta = await respostaPromise;
   return resposta.json();
 }
