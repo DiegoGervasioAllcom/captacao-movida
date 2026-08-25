@@ -173,6 +173,20 @@ async function capturarDiagnosticoDeFalha(page, rotulo) {
 // fullSignedURL vazio, sem erro, mesmo com sessao valida; o endpoint parece
 // depender de algum estado que so existe navegando/clicando na tela
 // normalmente, entao deixamos o proprio Playwright fazer o clique real).
+// Remove do DOM qualquer overlay/widget de marketing do HubSpot que esteja
+// cobrindo o botao (id comeca com "hs-web-interactives" ou
+// "hs-interactives-modal-overlay", visto em producao 25/08/2026). Ignora
+// silenciosamente se nao existir - so limpa quando ha algo pra limpar.
+async function removerOverlayHubspot(page) {
+  await page
+    .evaluate(() => {
+      document
+        .querySelectorAll('[id^="hs-web-interactives"], [id^="hs-interactives-modal-overlay"]')
+        .forEach((el) => el.remove());
+    })
+    .catch(() => {});
+}
+
 async function clicarExportarProcessos(page) {
   // 30s dava timeout em producao com o site so um pouco mais lento (visto
   // em 3 execucoes seguidas do cron) mesmo com o clique tendo saido normal -
@@ -189,15 +203,19 @@ async function clicarExportarProcessos(page) {
   // been closed" sem print de diagnostico. O catch vazio so marca a promise
   // como tratada; o await abaixo continua lancando o erro normalmente.
   respostaPromise.catch(() => {});
-  // force: true porque um popup de marketing do HubSpot
-  // (#hs-interactives-modal-overlay) e a nav fixa do site cobrem o botao de
-  // tempos em tempos e fazem a checagem normal de "recebe eventos de
-  // ponteiro" do Playwright nunca estabilizar - visto em producao
-  // (25/08/2026) travando ~30s em dezenas de tentativas ate desistir. Nao
-  // tem relacao com o fluxo de exportacao, entao clicar direto no botao
-  // certo (ja confirmado visivel/habilitado antes disso) e seguro.
-  await page.getByRole("button", { name: "Exportar" }).click({ force: true });
-  await page.getByRole("button", { name: "Processos" }).click({ force: true });
+  // Um popup de marketing do HubSpot (#hs-interactives-modal-overlay) cobre
+  // o botao de tempos em tempos. `force: true` (tentado antes, 25/08/2026)
+  // NAO resolve: ele so ignora a checagem de estabilidade do Playwright, mas
+  // o navegador ainda entrega o clique de verdade pro elemento que esta
+  // fisicamente por cima - entao "Exportar" nunca abria o menu de verdade e
+  // o "Processos" seguinte dava timeout esperando um item que nunca
+  // aparecia. Removendo o overlay do DOM (decorativo, sem relacao com o
+  // fluxo de exportacao) antes de cada clique, o clique normal (sem force)
+  // chega no botao real.
+  await removerOverlayHubspot(page);
+  await page.getByRole("button", { name: "Exportar" }).click();
+  await removerOverlayHubspot(page);
+  await page.getByRole("button", { name: "Processos" }).click();
   const resposta = await respostaPromise;
   return resposta.json();
 }
