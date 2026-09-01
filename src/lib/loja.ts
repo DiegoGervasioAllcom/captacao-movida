@@ -39,14 +39,16 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
  * contando uma vez cada loja real, ignorando os apelidos do ViaNuvem que
  * apontam pra essa mesma loja.
  *
- * As 25 marcadas NOVA (projeto de expansao Supper Certo, regionais GSP2-4 e
+ * As 26 marcadas NOVA (projeto de expansao Supper Certo, regionais GSP2-4 e
  * SPI1-2, planilha "NOVAS LOJAS PROJETO SUPPER.xlsx") AINDA NAO tem planilha
  * de destino mapeada em LOJA_PARA_PLANILHA - um lead dessas lojas cai no log
  * de erro do webhook (Erros_Webhook) em vez de chegar em algum vendedor, ate
  * alguem decidir o roteamento (everton/wesley/william ou planilha nova) e
- * adicionar a linha correspondente la. "Auto Shopping Taubate" e "CS Sao
- * Paulo Vila Ema" (unidades da mesma planilha) e "Venda ao Condutor" (nao e
- * loja fisica) ficaram de fora por decisao do time.
+ * adicionar a linha correspondente la. "CS Sao Paulo Vila Ema" (mesma
+ * unidade fisica de Vila Ema) e "Venda ao Condutor" (nao e loja fisica)
+ * ficaram de fora por decisao do time. "Auto Shopping Taubate", apesar do
+ * nome parecido, e loja separada de "Taubate" (confirmado pelo time) - por
+ * isso tem entrada propria abaixo, mesmo sendo NOVA.
  *
  * "Campinas Shop Dom Pedro" fica sem acento/abreviado de proposito: e a
  * chave exata que existe no mapa (o apelido com "Shopping" tem um hifen
@@ -61,6 +63,7 @@ export const LOJAS_DISPONIVEIS = [
   "Auto Shopping Bandeirantes", // NOVA
   "Auto Shopping Raposo", // NOVA
   "Auto Shopping Tamboré", // NOVA
+  "Auto Shopping Taubaté", // NOVA
   "Bauru", // NOVA
   "Campinas Amoreiras",
   "Campinas Itapura",
@@ -148,7 +151,6 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Seminovos Movida Suzano": "Suzano",
     "Seminovos Movida Suzano - Sp": "Suzano",
     Taubate: "Taubaté",
-    "Seminovos Movida Auto Shopping Taubate": "Taubaté",
     "Guarulhos Timoteo Penteado": "Timóteo Penteado",
     "Timoteo Penteado": "Timóteo Penteado",
     "Mogi das Cruzes": "Mogi das Cruzes",
@@ -169,6 +171,8 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Auto Shopping Bandeirantes": "Auto Shopping Bandeirantes",
     "Auto Shopping Raposo": "Auto Shopping Raposo",
     "Auto Shopping Tamboré": "Auto Shopping Tamboré",
+    "Auto Shopping Taubaté": "Auto Shopping Taubaté",
+    "Seminovos Movida Auto Shopping Taubate": "Auto Shopping Taubaté", // apelido ViaNuvem
     Bauru: "Bauru",
     "Eliseu de Almeida": "Eliseu de Almeida",
     "Ermano Marchetti": "Ermano Marchetti",
