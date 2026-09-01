@@ -33,11 +33,22 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
 }
 
 /**
- * As 22 lojas que ja tem planilha de destino mapeada em
- * supabase/webhooks/captacoes-to-google-sheets.gs (LOJA_PARA_PLANILHA) -
+ * As lojas disponiveis no select de loja do autocadastro do vendedor.
+ * As 22 originais ja tem planilha de destino mapeada em
+ * supabase/webhooks/captacoes-to-google-sheets.gs (LOJA_PARA_PLANILHA);
  * contando uma vez cada loja real, ignorando os apelidos do ViaNuvem que
- * apontam pra essa mesma loja. Usada no select de loja do autocadastro do
- * vendedor - mantenha em sincronia se uma loja nova ganhar planilha.
+ * apontam pra essa mesma loja.
+ *
+ * As 26 marcadas NOVA (projeto de expansao Supper Certo, regionais GSP2-4 e
+ * SPI1-2, planilha "NOVAS LOJAS PROJETO SUPPER.xlsx") AINDA NAO tem planilha
+ * de destino mapeada em LOJA_PARA_PLANILHA - um lead dessas lojas cai no log
+ * de erro do webhook (Erros_Webhook) em vez de chegar em algum vendedor, ate
+ * alguem decidir o roteamento (everton/wesley/william ou planilha nova) e
+ * adicionar a linha correspondente la. "CS Sao Paulo Vila Ema" (mesma
+ * unidade fisica de Vila Ema) e "Venda ao Condutor" (nao e loja fisica)
+ * ficaram de fora por decisao do time. "Auto Shopping Taubate", apesar do
+ * nome parecido, e loja separada de "Taubate" (confirmado pelo time) - por
+ * isso tem entrada propria abaixo, mesmo sendo NOVA.
  *
  * "Campinas Shop Dom Pedro" fica sem acento/abreviado de proposito: e a
  * chave exata que existe no mapa (o apelido com "Shopping" tem um hifen
@@ -47,20 +58,46 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
 export const LOJAS_DISPONIVEIS = [
   "Americana",
   "Aricanduva",
+  "Auto Shopping Arena Motors", // NOVA
+  "Auto Shopping Autonomistas", // NOVA
+  "Auto Shopping Bandeirantes", // NOVA
+  "Auto Shopping Raposo", // NOVA
+  "Auto Shopping Tamboré", // NOVA
+  "Auto Shopping Taubaté", // NOVA
+  "Bauru", // NOVA
   "Campinas Amoreiras",
   "Campinas Itapura",
   "Campinas Orosimbo",
   "Campinas Shop Dom Pedro",
+  "Eliseu de Almeida", // NOVA
+  "Ermano Marchetti", // NOVA
+  "Gastão Vidigal", // NOVA
+  "Indaiatuba", // NOVA
   "Itaim Paulista",
   "Jundiaí",
+  "Limeira", // NOVA
   "Loja Web",
+  "Miguel Estefano", // NOVA
   "Mogi das Cruzes",
+  "Nações Unidas", // NOVA
+  "Osasco", // NOVA
   "Penha",
+  "Piracicaba", // NOVA
   "Praia Grande",
+  "Ribeirão Preto", // NOVA
+  "Rio Claro", // NOVA
+  "Santana", // NOVA
+  "Santo André", // NOVA
   "Santos",
+  "São Bernardo do Campo", // NOVA
+  "São Bernardo Pereira Barreto", // NOVA
+  "São Carlos", // NOVA
+  "São José do Rio Preto", // NOVA
   "São José dos Campos",
   "São Miguel Paulista",
   "São Paulo Radial Leste",
+  "Sorocaba", // NOVA
+  "Sorocaba Dom Aguirre", // NOVA
   "Suzano",
   "Taubaté",
   "Timóteo Penteado",
@@ -114,7 +151,6 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Seminovos Movida Suzano": "Suzano",
     "Seminovos Movida Suzano - Sp": "Suzano",
     Taubate: "Taubaté",
-    "Seminovos Movida Auto Shopping Taubate": "Taubaté",
     "Guarulhos Timoteo Penteado": "Timóteo Penteado",
     "Timoteo Penteado": "Timóteo Penteado",
     "Mogi das Cruzes": "Mogi das Cruzes",
@@ -128,6 +164,35 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Vila Carrao": "Vila Carrão",
     "Vila Ema": "Vila Ema",
     "Vila Guilherme": "Vila Guilherme",
+    // Lojas novas (projeto de expansao Supper Certo) - so a identidade, sem
+    // apelido conhecido ainda (nenhum export real inspecionado por enquanto).
+    "Auto Shopping Arena Motors": "Auto Shopping Arena Motors",
+    "Auto Shopping Autonomistas": "Auto Shopping Autonomistas",
+    "Auto Shopping Bandeirantes": "Auto Shopping Bandeirantes",
+    "Auto Shopping Raposo": "Auto Shopping Raposo",
+    "Auto Shopping Tamboré": "Auto Shopping Tamboré",
+    "Auto Shopping Taubaté": "Auto Shopping Taubaté",
+    "Seminovos Movida Auto Shopping Taubate": "Auto Shopping Taubaté", // apelido ViaNuvem
+    Bauru: "Bauru",
+    "Eliseu de Almeida": "Eliseu de Almeida",
+    "Ermano Marchetti": "Ermano Marchetti",
+    "Gastão Vidigal": "Gastão Vidigal",
+    Indaiatuba: "Indaiatuba",
+    Limeira: "Limeira",
+    "Miguel Estefano": "Miguel Estefano",
+    "Nações Unidas": "Nações Unidas",
+    Osasco: "Osasco",
+    Piracicaba: "Piracicaba",
+    "Ribeirão Preto": "Ribeirão Preto",
+    "Rio Claro": "Rio Claro",
+    Santana: "Santana",
+    "Santo André": "Santo André",
+    "São Bernardo do Campo": "São Bernardo do Campo",
+    "São Bernardo Pereira Barreto": "São Bernardo Pereira Barreto",
+    "São Carlos": "São Carlos",
+    "São José do Rio Preto": "São José do Rio Preto",
+    Sorocaba: "Sorocaba",
+    "Sorocaba Dom Aguirre": "Sorocaba Dom Aguirre",
   };
   const normalizado: Record<string, (typeof LOJAS_DISPONIVEIS)[number]> = {};
   for (const [chave, valor] of Object.entries(mapa)) {
