@@ -150,9 +150,15 @@ const PASTA_DEBUG = join(dirname(fileURLToPath(import.meta.url)), "debug");
 // PASTA_DEBUG, que o docker-compose monta como volume pra sobreviver ao
 // --rm do container. `rotulo` distingue o print de falha de login do de
 // falha de exportacao.
-async function capturarDiagnosticoDeFalha(page, rotulo) {
+// `rastreamento` (opcional) e o objeto devolvido por iniciarRastreamentoDePagina
+// (console/erros/requisicoes coletados desde a abertura da pagina) - sem ele,
+// so tira o print e o texto visivel (comportamento antigo). Grava um JSON a
+// parte com o rastreamento completo em vez de embutir tudo na mensagem de
+// erro (que ja e longa por causa do log do Playwright) - so a contagem e o
+// caminho do arquivo vao na string devolvida.
+async function capturarDiagnosticoDeFalha(page, rotulo, rastreamento) {
   try {
-    const { mkdirSync } = await import("node:fs");
+    const { mkdirSync, writeFileSync } = await import("node:fs");
     mkdirSync(PASTA_DEBUG, { recursive: true });
     const carimbo = new Date().toISOString().replace(/[:.]/g, "-");
     const caminhoPrint = `${PASTA_DEBUG}/${rotulo}-${carimbo}.png`;
@@ -161,10 +167,67 @@ async function capturarDiagnosticoDeFalha(page, rotulo) {
     const textoTela = await page.evaluate(() => document.body.innerText).catch(() => "");
     const textoResumido = textoTela.replace(/\s+/g, " ").trim().slice(0, 400);
 
-    return `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}".`;
+    let resumoRastreamento = "";
+    if (rastreamento) {
+      const caminhoJson = `${PASTA_DEBUG}/${rotulo}-${carimbo}.json`;
+      const pendentes = [...rastreamento.requisicoesPendentes.keys()];
+      writeFileSync(
+        caminhoJson,
+        JSON.stringify(
+          {
+            console: rastreamento.mensagensConsole,
+            errosDePagina: rastreamento.errosDePagina,
+            requisicoesFalhas: rastreamento.requisicoesFalhas,
+            requisicoesPendentes: pendentes,
+          },
+          null,
+          2
+        )
+      );
+      resumoRastreamento =
+        ` Rastreamento em ${caminhoJson} (${rastreamento.mensagensConsole.length} mensagens de console, ` +
+        `${rastreamento.errosDePagina.length} erros de pagina, ${rastreamento.requisicoesFalhas.length} ` +
+        `requisicoes falhas, ${pendentes.length} ainda pendentes).`;
+    }
+
+    return `Print salvo em ${caminhoPrint}. Texto visivel na tela: "${textoResumido}".${resumoRastreamento}`;
   } catch (err) {
     return `(nao foi possivel capturar diagnostico: ${err})`;
   }
+}
+
+// Liga listeners na pagina ANTES de qualquer navegacao (console/erro/rede nao
+// sao retroativos no Playwright - se ligar so na hora da falha, perde tudo
+// que ja aconteceu). Usado pra descobrir a causa real de "Exportar" ficar
+// disabled por 60s inteiros sem nenhum overlay visivel na tela (ver
+// capturarDiagnosticoDeFalha) - ex.: erro JS no widget que habilita o botao,
+// ou uma chamada de API/WebSocket que nunca resolve em modo headless.
+function iniciarRastreamentoDePagina(page) {
+  const mensagensConsole = [];
+  const errosDePagina = [];
+  const requisicoesFalhas = [];
+  const requisicoesPendentes = new Map();
+
+  page.on("console", (msg) => {
+    if (mensagensConsole.length >= 50) return;
+    mensagensConsole.push(`[${msg.type()}] ${msg.text()}`);
+  });
+  page.on("pageerror", (err) => {
+    if (errosDePagina.length >= 50) return;
+    errosDePagina.push(String(err));
+  });
+  page.on("request", (req) => {
+    if (requisicoesPendentes.size >= 200) return;
+    requisicoesPendentes.set(req, req.url());
+  });
+  page.on("requestfinished", (req) => requisicoesPendentes.delete(req));
+  page.on("requestfailed", (req) => {
+    requisicoesPendentes.delete(req);
+    if (requisicoesFalhas.length >= 50) return;
+    requisicoesFalhas.push(`${req.url()} - ${req.failure()?.errorText || "erro desconhecido"}`);
+  });
+
+  return { mensagensConsole, errosDePagina, requisicoesFalhas, requisicoesPendentes };
 }
 
 // Clica em "Exportar" > "Processos" na tela de verdade e captura a resposta
@@ -351,6 +414,7 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     geolocation: { latitude: -23.5505, longitude: -46.6333 },
   });
   const page = await context.newPage();
+  const rastreamento = iniciarRastreamentoDePagina(page);
 
   try {
     // "networkidle" nunca e alcancado nesse site - ele carrega pixels de
@@ -375,7 +439,7 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
 
     const url = page.url();
     if (url.includes("/login")) {
-      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-login");
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-login", rastreamento);
       // Diz se o submit chegou a sair pela rede: se NAO saiu, o problema e a
       // pagina (nao reagiu ao clique/Enter); se saiu e continuamos no /login,
       // ai sim e o site recusando (senha, verificacao adicional, reCAPTCHA).
@@ -401,7 +465,7 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     } catch (err) {
       // Sem isso, um timeout aqui (ex.: site lento nesse endpoint) virava
       // uma falha muda - nenhum print, so o erro cru do Playwright no log.
-      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-clique-exportar");
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-clique-exportar", rastreamento);
       throw new Error(`Falha ao clicar em Exportar > Processos: ${err.message}. ${diagnostico}`);
     }
     let tentativas = 0;
@@ -430,7 +494,7 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     }
 
     if (!dadosResposta.fullSignedURL) {
-      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-export");
+      const diagnostico = await capturarDiagnosticoDeFalha(page, "falha-export", rastreamento);
       throw new Error(
         `Relatorio nao ficou pronto a tempo. Ultima resposta: ${resumoRespostaRelatorio(dadosResposta)}. ${diagnostico}`
       );
