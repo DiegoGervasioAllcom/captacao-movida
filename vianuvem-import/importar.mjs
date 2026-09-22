@@ -259,18 +259,152 @@ async function fecharAvisosBloqueantes(page) {
   await page.keyboard.press("Escape").catch(() => {});
 }
 
-// Remove do DOM qualquer overlay/widget de marketing do HubSpot que esteja
-// cobrindo o botao (id comeca com "hs-web-interactives" ou
-// "hs-interactives-modal-overlay", visto em producao 25/08/2026). Ignora
+// Remove do DOM qualquer overlay/modal que esteja fisicamente cobrindo o
+// botao. Confirmado ao vivo inspecionando o site de verdade (22/09/2026,
+// login real): o modal "Descontinuacao do Unico Auto" que aparecia por
+// cima da tela e um POPUP CTA do HubSpot, id "hs-overlay-cta-<numero>"
+// (padrao diferente dos outros dois ids de HubSpot ja tratados aqui -
+// "hs-web-interactives" e "hs-interactives-modal-overlay" - por isso a
+// remocao anterior nao pegava esse). O conteudo do popup e um IFRAME
+// (hs-sites.com), entao nao da pra clicar no X de fechar dele por fora -
+// remover o container inteiro do DOM e o jeito confiavel. Ignora
 // silenciosamente se nao existir - so limpa quando ha algo pra limpar.
-async function removerOverlayHubspot(page) {
+// Remover do DOM em vez de fechar por tecla/clique tambem evita arriscar
+// fechar outra coisa (ex.: o proprio menu do Exportar, ver
+// fecharAvisosBloqueantes).
+async function removerOverlaysBloqueantes(page) {
   await page
     .evaluate(() => {
       document
-        .querySelectorAll('[id^="hs-web-interactives"], [id^="hs-interactives-modal-overlay"]')
+        .querySelectorAll(
+          '[id^="hs-web-interactives"], [id^="hs-interactives-modal-overlay"], ' +
+            '[id^="hs-overlay-cta"], .ant-modal-wrap, .ant-modal-mask, .ant-modal-root'
+        )
         .forEach((el) => el.remove());
     })
     .catch(() => {});
+}
+
+// Chama removerOverlaysBloqueantes repetidamente por alguns segundos ANTES
+// do clique em "Exportar" - um unico chamado as vezes e cedo demais (o
+// modal pode aparecer OU reaparecer com atraso, como visto no teste local
+// de 22/09/2026: a primeira remocao nao foi suficiente, o Playwright ainda
+// bateu no intercept nas primeiras tentativas de clique).
+async function garantirSemOverlayAntesDoClique(page, duracaoMs = 5000) {
+  const fim = Date.now() + duracaoMs;
+  while (Date.now() < fim) {
+    await removerOverlaysBloqueantes(page);
+    await page.waitForTimeout(300);
+  }
+}
+
+// Filtra os processos por periodo ANTES de tentar exportar. Causa raiz real
+// (achada pelo usuario em producao, 22/09/2026, depois de 4 tentativas
+// erradas minhas com overlay/timeout): a lista sem filtro tinha 1367+
+// processos, e nesse tamanho o widget do qual o botao "Exportar" depende
+// pra habilitar nunca termina de carregar - nao era nenhum modal nem
+// timeout curto. Clica em "Refinar", preenche o intervalo de data (hoje -
+// diasAtras ate hoje) no seletor de datas (Ant Design RangePicker - o site
+// inteiro usa Ant Design, mesma biblioteca do modal achado antes) e clica
+// em "Refinar busca". O job roda a cada 20 minutos, entao nunca precisa do
+// historico inteiro - so os processos recentes.
+//
+// Selectors ainda NAO confirmados ao vivo (sem acesso direto ao DOM do
+// site) - primeira tentativa, testar local com VIANUVEM_HEADLESS=false e
+// ajustar se algum passo nao encontrar o elemento certo.
+const MESES_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+function formatarDataBr(d) {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+// Seleciona UMA data no calendario de intervalo (Ant Design "ant-calendar
+// ant-calendar-range"), confirmado ao vivo em producao (22/09/2026, login
+// real): cada celula de dia (<td class="ant-calendar-cell">) tem um
+// atributo title com a data POR EXTENSO em portugues (ex.: "13 de agosto de
+// 2026") - unico em todo o calendario, entao serve pra mirar o dia certo
+// sem depender de saber em qual dos 2 paineis (mes) ele esta.
+//
+// O calendario mostra DOIS paineis lado a lado com navegacao INDEPENDENTE
+// cada um (2 elementos .ant-calendar-prev-month-btn, indice 0 = painel da
+// esquerda/inicio, indice 1 = painel da direita/fim) - confirmado ao vivo:
+// ao abrir do zero (sem selecao previa), o painel 0 comeca no mes atual e o
+// painel 1 no mes seguinte. `indicePainel` diz qual dos dois navegar.
+async function selecionarDataNoCalendario(page, data, indicePainel) {
+  const tituloAlvo = `${data.getDate()} de ${MESES_PT[data.getMonth()]} de ${data.getFullYear()}`;
+
+  const hoje = new Date();
+  const mesBasePainel =
+    hoje.getFullYear() * 12 + hoje.getMonth() + (indicePainel === 0 ? 0 : 1);
+  const mesAlvo = data.getFullYear() * 12 + data.getMonth();
+  const cliquesParaTras = mesBasePainel - mesAlvo;
+
+  const botoesPrev = page.locator(".ant-calendar-prev-month-btn");
+  for (let i = 0; i < cliquesParaTras; i++) {
+    await botoesPrev.nth(indicePainel).click();
+  }
+
+  const celula = page.locator(`.ant-calendar-cell[title="${tituloAlvo}"] .ant-calendar-date`);
+  await celula.waitFor({ state: "visible", timeout: 10000 });
+  await celula.click();
+}
+
+// Filtra os processos por periodo ANTES de tentar exportar. Causa raiz real
+// (achada pelo usuario em producao, 22/09/2026, depois de 4 tentativas
+// erradas minhas com overlay/timeout): a lista sem filtro tinha 1367+
+// processos, e nesse tamanho o widget do qual o botao "Exportar" depende
+// pra habilitar nunca termina de carregar - nao era nenhum modal nem
+// timeout curto. Confirmado tambem ao vivo: com o periodo filtrado pra 64
+// processos, o botao "Exportar" ja fica habilitado na hora (disabled: false
+// imediatamente apos "Refinar busca"). Clica em "Refinar", preenche o
+// intervalo de data (hoje - diasAtras ate hoje) e clica em "Refinar busca".
+// O job roda a cada 20 minutos, entao nunca precisa do historico inteiro -
+// so os processos recentes.
+//
+// Todos os seletores abaixo foram confirmados inspecionando o site de
+// verdade (login real, 22/09/2026), nao sao suposicao.
+async function refinarPorPeriodo(page, diasAtras = 40) {
+  const hoje = new Date();
+  const inicio = new Date(hoje);
+  inicio.setDate(inicio.getDate() - diasAtras);
+
+  console.log(
+    `[vianuvem-import] Refinando busca para o periodo ${formatarDataBr(inicio)} ~ ${formatarDataBr(hoje)}...`
+  );
+
+  await garantirSemOverlayAntesDoClique(page, 3000);
+  await page.getByRole("button", { name: "Refinar" }).click();
+
+  // #dateRange e o <span> que abre o calendario ao clicar - os 2 <input>
+  // dentro dele (Data de inicio/Data de fim) sao readonly, clicar neles
+  // direto NAO abre o calendario.
+  await page.locator("#dateRange").click();
+  await selecionarDataNoCalendario(page, inicio, 0);
+  await selecionarDataNoCalendario(page, hoje, 1);
+
+  // O filtro ja aplica sozinho assim que a 2a data e selecionada (a lista
+  // de fundo ja atualiza a contagem ANTES de qualquer clique em "Refinar
+  // busca" - confirmado ao vivo, 22/09/2026) - e o modal parece se fechar
+  // sozinho pouco depois disso. Por causa desse auto-fechamento, o clique
+  // no botao "Refinar busca" e so um "fecha se ainda estiver aberto":
+  // melhor esforco, NAO lanca erro se nao achar (o filtro real ja
+  // aconteceu antes dele, entao a ausencia do botao nao e falha nenhuma -
+  // era exatamente isso que fazia o refino inteiro cair no fallback "sem
+  // filtro" por engano, mesmo com o filtro ja aplicado).
+  await page.waitForTimeout(1500);
+  await removerOverlaysBloqueantes(page);
+  await page
+    .locator('[data-testid="search-refinement__form__row__refine-search-button"]')
+    .click({ timeout: 5000 })
+    .catch(() => {});
+
+  // A lista recarrega depois do filtro - da uma folga antes de seguir pro
+  // clique em Exportar (que ja tem sua propria espera ativa pelo disabled).
+  await page.waitForTimeout(2000);
+  console.log("[vianuvem-import] Busca refinada.");
 }
 
 async function clicarExportarProcessos(page) {
@@ -298,7 +432,7 @@ async function clicarExportarProcessos(page) {
   // aparecia. Removendo o overlay do DOM (decorativo, sem relacao com o
   // fluxo de exportacao) antes de cada clique, o clique normal (sem force)
   // chega no botao real.
-  await removerOverlayHubspot(page);
+  await removerOverlaysBloqueantes(page);
   await fecharAvisosBloqueantes(page);
   // O botao "Exportar" fica com o atributo disabled de verdade (nao e
   // sobreposicao de clique) enquanto algum widget da tela ainda esta
@@ -312,24 +446,38 @@ async function clicarExportarProcessos(page) {
   // cegas de novo) e SO DEPOIS clica, com um timeout curto (ja deveria
   // estar pronto pro clique).
   const inicioEspera = Date.now();
+  // page.waitForFunction(pageFunction, arg, options) - o timeout vai no
+  // TERCEIRO parametro, nao no segundo (bug real: a versao anterior passava
+  // { timeout: 180000 } como "arg", entao o timeout de verdade sempre foi o
+  // padrao de 30s do Playwright, nunca os 180s pretendidos - so nao dava pra
+  // notar enquanto o botao habilitava rapido o bastante).
   await page.waitForFunction(
     () => {
       const botoes = [...document.querySelectorAll('button[data-testid*="btn-export-workflow"]')];
       return botoes.some((b) => !b.disabled);
     },
+    null,
     { timeout: 180000, polling: 500 }
   );
   console.log(
     `[vianuvem-import] Botao Exportar habilitou apos ${Math.round((Date.now() - inicioEspera) / 1000)}s de espera.`
   );
-  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 10000 });
+  // Depois do botao habilitar, um modal (Ant Design, ver
+  // removerOverlaysBloqueantes) pode aparecer/reaparecer por cima dele com
+  // atraso - confirmado ao vivo pelo log de actionability do Playwright
+  // (22/09/2026): "subtree intercepts pointer events" nas primeiras
+  // tentativas de clique, mesmo com o botao ja visivel/habilitado/estavel.
+  // Insiste removendo por alguns segundos ANTES do clique em vez de confiar
+  // numa unica remocao.
+  await garantirSemOverlayAntesDoClique(page);
+  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 20000 });
   // SO remove overlay aqui, NAO chama fecharAvisosBloqueantes: ela aperta
   // Escape, que fecha o menu suspenso do "Exportar" que acabou de abrir -
   // bug real visto em producao (22/09/2026): o clique em Exportar "dava
   // certo" sem erro nenhum, mas "Processos" nunca aparecia porque o proprio
   // Escape fechava o menu antes do clique seguinte. O aviso/modal que
   // fecharAvisosBloqueantes trata so pode aparecer ANTES do menu abrir.
-  await removerOverlayHubspot(page);
+  await removerOverlaysBloqueantes(page);
   await page.getByRole("button", { name: "Processos" }).click({ timeout: 60000 });
   const resposta = await respostaPromise;
   return resposta.json();
@@ -475,6 +623,15 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
 
     console.log("[vianuvem-import] Login OK. Clicando em Exportar > Processos...");
     await fecharAvisosBloqueantes(page);
+
+    try {
+      await refinarPorPeriodo(page);
+    } catch (err) {
+      // Nao interrompe o job por isso - se o refino falhar (site mudou o
+      // filtro, elemento nao encontrado), segue tentando exportar sem
+      // filtro mesmo, do jeito que era antes. So avisa no log.
+      console.warn(`[vianuvem-import] Nao consegui refinar por periodo, seguindo sem filtro: ${err.message}`);
+    }
 
     let dadosResposta;
     try {
