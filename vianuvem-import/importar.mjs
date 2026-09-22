@@ -173,6 +173,29 @@ async function capturarDiagnosticoDeFalha(page, rotulo) {
 // fullSignedURL vazio, sem erro, mesmo com sessao valida; o endpoint parece
 // depender de algum estado que so existe navegando/clicando na tela
 // normalmente, entao deixamos o proprio Playwright fazer o clique real).
+// Fecha avisos/modais que o proprio site as vezes mostra por cima da tela
+// (banner de cookies, avisos de produto) ANTES de tentar exportar - visto em
+// producao em 22/09/2026: um modal de aviso ("Descontinuacao do Unico Auto")
+// cobrindo o widget do qual o botao "Exportar" depende pra habilitar, o que
+// fazia o clique estourar os 60s inteiros com o botao sempre "disabled" (nao
+// era sobreposicao de clique como o overlay do HubSpot - o proprio atributo
+// disabled nunca saia enquanto o modal estava na tela). Como cada execucao
+// do Playwright abre um contexto novo (sem cookie de "ja vi esse aviso"),
+// esses avisos tendem a aparecer em TODA execucao, entao isso roda sempre,
+// nao so na primeira vez. Cada tentativa e curta e silenciosa (nunca lanca)
+// pra nao quebrar quando o site nao tiver nenhum desses na tela.
+async function fecharAvisosBloqueantes(page) {
+  await page
+    .getByRole("button", { name: /aceitar/i })
+    .click({ timeout: 3000 })
+    .catch(() => {});
+  await page
+    .getByRole("button", { name: /fechar|close/i })
+    .click({ timeout: 3000 })
+    .catch(() => {});
+  await page.keyboard.press("Escape").catch(() => {});
+}
+
 // Remove do DOM qualquer overlay/widget de marketing do HubSpot que esteja
 // cobrindo o botao (id comeca com "hs-web-interactives" ou
 // "hs-interactives-modal-overlay", visto em producao 25/08/2026). Ignora
@@ -218,10 +241,15 @@ async function clicarExportarProcessos(page) {
   // em "CARREGANDO..." com 1367 processos, botao disabled pelos 30s
   // inteiros do timeout padrao do Playwright) - o timeout em waitForResponse
   // acima NAO cobre o click em si, cada um tem o seu. Mesma folga de 60s
-  // aqui.
+  // aqui. Mesmo com 60s, o botao continuava disabled o tempo todo quando um
+  // modal de aviso do proprio site (nao HubSpot) cobria o widget do qual ele
+  // depende pra habilitar - daí o fecharAvisosBloqueantes logo abaixo,
+  // repetido aqui porque o modal pode aparecer com atraso.
   await removerOverlayHubspot(page);
+  await fecharAvisosBloqueantes(page);
   await page.getByRole("button", { name: "Exportar" }).click({ timeout: 60000 });
   await removerOverlayHubspot(page);
+  await fecharAvisosBloqueantes(page);
   await page.getByRole("button", { name: "Processos" }).click({ timeout: 60000 });
   const resposta = await respostaPromise;
   return resposta.json();
@@ -365,6 +393,7 @@ async function autenticarEBaixarSignedUrl(usuario, senha) {
     }
 
     console.log("[vianuvem-import] Login OK. Clicando em Exportar > Processos...");
+    await fecharAvisosBloqueantes(page);
 
     let dadosResposta;
     try {
