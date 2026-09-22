@@ -212,10 +212,17 @@ async function clicarExportarProcessos(page) {
   // aparecia. Removendo o overlay do DOM (decorativo, sem relacao com o
   // fluxo de exportacao) antes de cada clique, o clique normal (sem force)
   // chega no botao real.
+  //
+  // O botao "Exportar" tambem fica desabilitado enquanto a lista de
+  // processos ainda esta carregando (visto em producao em 22/09/2026: tela
+  // em "CARREGANDO..." com 1367 processos, botao disabled pelos 30s
+  // inteiros do timeout padrao do Playwright) - o timeout em waitForResponse
+  // acima NAO cobre o click em si, cada um tem o seu. Mesma folga de 60s
+  // aqui.
   await removerOverlayHubspot(page);
-  await page.getByRole("button", { name: "Exportar" }).click();
+  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 60000 });
   await removerOverlayHubspot(page);
-  await page.getByRole("button", { name: "Processos" }).click();
+  await page.getByRole("button", { name: "Processos" }).click({ timeout: 60000 });
   const resposta = await respostaPromise;
   return resposta.json();
 }
