@@ -189,8 +189,13 @@ async function clicarExportarProcessos(page) {
   // been closed" sem print de diagnostico. O catch vazio so marca a promise
   // como tratada; o await abaixo continua lancando o erro normalmente.
   respostaPromise.catch(() => {});
-  await page.getByRole("button", { name: "Exportar" }).click();
-  await page.getByRole("button", { name: "Processos" }).click();
+  // O botao "Exportar" fica desabilitado enquanto a lista de processos ainda
+  // esta carregando (visto em producao em 22/09/2026: tela em "CARREGANDO..."
+  // com 1367 processos, botao disabled pelos 30s inteiros do timeout padrao
+  // do Playwright) - o timeout acima em waitForResponse NAO cobre o click em
+  // si, cada um tem o seu. Mesma folga de 60s aqui.
+  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 60000 });
+  await page.getByRole("button", { name: "Processos" }).click({ timeout: 60000 });
   const resposta = await respostaPromise;
   return resposta.json();
 }
