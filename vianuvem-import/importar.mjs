@@ -279,7 +279,7 @@ async function clicarExportarProcessos(page) {
   // 60s da a mesma folga que ja usamos no polling do relatorio assincrono.
   const respostaPromise = page.waitForResponse(
     (r) => r.url().includes("search/report/workflows") && r.request().method() === "POST",
-    { timeout: 60000 }
+    { timeout: 180000 }
   );
   // Sem isso, uma rejeicao dessa promise ENQUANTO os cliques abaixo ainda
   // estao em andamento (ex.: pagina/contexto fecha no meio do caminho) conta
@@ -298,21 +298,38 @@ async function clicarExportarProcessos(page) {
   // aparecia. Removendo o overlay do DOM (decorativo, sem relacao com o
   // fluxo de exportacao) antes de cada clique, o clique normal (sem force)
   // chega no botao real.
-  //
-  // O botao "Exportar" tambem fica desabilitado enquanto a lista de
-  // processos ainda esta carregando (visto em producao em 22/09/2026: tela
-  // em "CARREGANDO..." com 1367 processos, botao disabled pelos 30s
-  // inteiros do timeout padrao do Playwright) - o timeout em waitForResponse
-  // acima NAO cobre o click em si, cada um tem o seu. Mesma folga de 60s
-  // aqui. Mesmo com 60s, o botao continuava disabled o tempo todo quando um
-  // modal de aviso do proprio site (nao HubSpot) cobria o widget do qual ele
-  // depende pra habilitar - daí o fecharAvisosBloqueantes logo abaixo,
-  // repetido aqui porque o modal pode aparecer com atraso.
   await removerOverlayHubspot(page);
   await fecharAvisosBloqueantes(page);
-  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 60000 });
+  // O botao "Exportar" fica com o atributo disabled de verdade (nao e
+  // sobreposicao de clique) enquanto algum widget da tela ainda esta
+  // carregando - e os 3 timeouts tentados antes (30s, depois 60s) sempre
+  // estouravam com o botao AINDA disabled no ultimo instante (visto no log
+  // de retry do Playwright: 500ms entre tentativas, "element is not
+  // enabled" ate o fim exato dos 60s) - ou seja, o problema nao era
+  // overlay nenhum, era so precisar de mais tempo. Separado do .click() de
+  // proposito: espera ativamente o disabled sumir (com log do tempo real
+  // que levou, pra medir de verdade em vez de so aumentar o timeout as
+  // cegas de novo) e SO DEPOIS clica, com um timeout curto (ja deveria
+  // estar pronto pro clique).
+  const inicioEspera = Date.now();
+  await page.waitForFunction(
+    () => {
+      const botoes = [...document.querySelectorAll('button[data-testid*="btn-export-workflow"]')];
+      return botoes.some((b) => !b.disabled);
+    },
+    { timeout: 180000, polling: 500 }
+  );
+  console.log(
+    `[vianuvem-import] Botao Exportar habilitou apos ${Math.round((Date.now() - inicioEspera) / 1000)}s de espera.`
+  );
+  await page.getByRole("button", { name: "Exportar" }).click({ timeout: 10000 });
+  // SO remove overlay aqui, NAO chama fecharAvisosBloqueantes: ela aperta
+  // Escape, que fecha o menu suspenso do "Exportar" que acabou de abrir -
+  // bug real visto em producao (22/09/2026): o clique em Exportar "dava
+  // certo" sem erro nenhum, mas "Processos" nunca aparecia porque o proprio
+  // Escape fechava o menu antes do clique seguinte. O aviso/modal que
+  // fecharAvisosBloqueantes trata so pode aparecer ANTES do menu abrir.
   await removerOverlayHubspot(page);
-  await fecharAvisosBloqueantes(page);
   await page.getByRole("button", { name: "Processos" }).click({ timeout: 60000 });
   const resposta = await respostaPromise;
   return resposta.json();
