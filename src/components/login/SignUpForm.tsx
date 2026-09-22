@@ -6,14 +6,21 @@ import styles from "./login.module.css";
 import { EyeIcon } from "./icons";
 import { clerkError } from "./clerkError";
 import { LOJAS_DISPONIVEIS } from "@/lib/loja";
-import { mascararTelefone, telefoneValido } from "@/lib/validation";
+import {
+  cpfValido,
+  emailCorporativoValido,
+  mascararCpf,
+  mascararTelefone,
+  telefoneValido,
+} from "@/lib/validation";
 
-// Autocadastro do vendedor. Loja e telefone escolhidos aqui vao em
+// Autocadastro do vendedor. Loja, telefone e CPF escolhidos aqui vao em
 // `unsafeMetadata` (unico campo que o cliente pode escrever no Clerk) -
 // depois que a conta e confirmada, /api/vendedor/perfil promove esses
 // valores para `publicMetadata` no servidor. `role` nunca e definido por
 // aqui: sem role, o app ja trata como "vendedor" (menor privilegio, ver
-// src/lib/roles.ts).
+// src/lib/roles.ts). E-mail restrito ao dominio corporativo @movida.com.br
+// (emailCorporativoValido) - o Clerk nao tem essa regra nativa.
 
 function goHome() {
   window.location.href = "/";
@@ -35,6 +42,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
   const [nomeCompleto, setNomeCompleto] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [loja, setLoja] = useState("");
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
@@ -45,8 +53,16 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
   async function handleCriarConta(e: React.FormEvent) {
     e.preventDefault();
     if (!isLoaded || busy) return;
+    if (!emailCorporativoValido(email)) {
+      setError("Use seu e-mail corporativo (@movida.com.br).");
+      return;
+    }
     if (!telefoneValido(telefone)) {
       setError("Telefone deve ter 10 ou 11 digitos.");
+      return;
+    }
+    if (!cpfValido(cpf)) {
+      setError("CPF invalido.");
       return;
     }
     setBusy(true);
@@ -58,7 +74,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
         lastName: resto.join(" ") || undefined,
         emailAddress: email,
         password: senha,
-        unsafeMetadata: { loja, telefone },
+        unsafeMetadata: { loja, telefone, cpf },
       });
       // Verificacao de e-mail DESLIGADA no Clerk: o cadastro ja sai
       // "complete" com sessao criada -> ativa e entra direto, sem etapa de
@@ -145,7 +161,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
           type="email"
           autoComplete="email"
           aria-label="E-mail"
-          placeholder="E-mail"
+          placeholder="E-mail corporativo (@movida.com.br)"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -161,6 +177,18 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
           required
           value={telefone}
           onChange={(e) => setTelefone(mascararTelefone(e.target.value))}
+        />
+      </div>
+      <div className={`${styles.field} ${styles.fieldCompact}`}>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label="CPF"
+          placeholder="CPF"
+          required
+          value={cpf}
+          onChange={(e) => setCpf(mascararCpf(e.target.value))}
         />
       </div>
       <div className={`${styles.field} ${styles.selectField} ${styles.fieldCompact}`}>

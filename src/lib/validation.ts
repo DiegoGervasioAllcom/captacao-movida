@@ -30,6 +30,40 @@ export function telefoneValido(valor: string): boolean {
   return d.length === 10 || d.length === 11;
 }
 
+/** Aplica a mascara brasileira de CPF enquanto o usuario digita: 000.000.000-00. */
+export function mascararCpf(valor: string): string {
+  const d = somenteDigitos(valor).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function digitoVerificadorCpf(base: string): number {
+  let soma = 0;
+  for (let i = 0; i < base.length; i++) {
+    soma += Number(base[i]) * (base.length + 1 - i);
+  }
+  const resto = (soma * 10) % 11;
+  return resto === 10 ? 0 : resto;
+}
+
+/** CPF valido = 11 digitos, nao repetidos, com os 2 digitos verificadores corretos. */
+export function cpfValido(valor: string): boolean {
+  const d = somenteDigitos(valor);
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const d1 = digitoVerificadorCpf(d.slice(0, 9));
+  const d2 = digitoVerificadorCpf(d.slice(0, 9) + d1);
+  return d === `${d.slice(0, 9)}${d1}${d2}`;
+}
+
+const DOMINIO_EMAIL_CORPORATIVO = "@movida.com.br";
+
+/** Autocadastro do vendedor exige e-mail corporativo (@movida.com.br). */
+export function emailCorporativoValido(valor: string): boolean {
+  return valor.trim().toLowerCase().endsWith(DOMINIO_EMAIL_CORPORATIVO);
+}
+
 /**
  * Normaliza a placa: remove espacos/hifens e converte para maiusculo.
  * Limita a 7 caracteres alfanumericos.
