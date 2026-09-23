@@ -28,3 +28,11 @@ docker-compose.yml
 .claude
 tsconfig.tsbuildinfo
 *.md
+
+# job standalone, imagem Docker propria dele (vianuvem-import-job) - o app
+# nao importa nada daqui. Faltava isso: todo build do app copiava a pasta
+# vianuvem-import/debug/ inteira (prints de falha acumulados, nao
+# rotacionados - ver vianuvem-import/README.md) pro contexto de build,
+# desperdicando espaco em disco de verdade (foi a causa de um "no space
+# left on device" real em producao, 23/09/2026).
+vianuvem-import
