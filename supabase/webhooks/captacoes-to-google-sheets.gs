@@ -1,19 +1,20 @@
 // =========================================================================
 // Captacao Movida - Destino do Database Webhook: Google Sheets
-// (roteado por loja para 3 planilhas diferentes)
+// (roteado por loja para planilhas diferentes - ver PLANILHAS abaixo)
 //
 // Recebe o POST que o Database Webhook do Supabase dispara a cada INSERT ou
 // UPDATE em `captacoes` (ver README.md secao "4. Configurar o Database
 // Webhook" - o webhook precisa estar configurado para OS DOIS eventos, nao
-// so Insert), descobre em qual das 3 planilhas a loja do vendedor cai
+// so Insert), descobre em qual planilha a loja do vendedor cai
 // (LOJA_PARA_PLANILHA abaixo) e adiciona (INSERT) ou atualiza (UPDATE) uma
 // linha la. O UPDATE acontece quando um vendedor "reivindica" pelo portal
 // um lead que ja existia (ex.: importado do ViaNuvem) - ver
 // registrar_captacao_vendedor no schema.sql.
 //
 // Este e um projeto Apps Script STANDALONE (nao vinculado a nenhuma das
-// planilhas) - precisa ser assim porque escreve em 3 arquivos diferentes.
-// Se voce ja tem um projeto criado em https://script.google.com, use ele.
+// planilhas) - precisa ser assim porque escreve em varios arquivos
+// diferentes. Se voce ja tem um projeto criado em https://script.google.com,
+// use ele.
 //
 // E-MAIL e CPF (`record.email`/`record.cpf`) sao preenchidos quando a
 // captacao vem da importacao automatica do ViaNuvem (vendedor_id =
@@ -25,11 +26,11 @@
 // legal do fluxo ViaNuvem, diferente do fluxo de indicacao do vendedor.
 //
 // Colunas da aba "Página1" em cada planilha - atualizado em 09/07/2026 apos as
-// 3 planilhas ganharem a coluna "CANAL" (antes era A-I, sem ela; o time
-// preenche manualmente, o webhook so deixa em branco). Cabecalho na LINHA 1,
-// dados a partir da LINHA 2 (confirmado ao vivo nas 3 planilhas reais - o texto
-// aqui dizia "cabecalho na 2, dados na 3" e estava errado, o que causou um bug
-// real na busca por placa; ver encontrarLinhaPorPlaca):
+// 3 planilhas originais ganharem a coluna "CANAL" (antes era A-I, sem ela; o
+// time preenche manualmente, o webhook so deixa em branco). Cabecalho na
+// LINHA 1, dados a partir da LINHA 2 (confirmado ao vivo nas planilhas reais -
+// o texto aqui dizia "cabecalho na 2, dados na 3" e estava errado, o que
+// causou um bug real na busca por placa; ver encontrarLinhaPorPlaca):
 //   A DATA | B CANAL | C VENDEDOR | D LOJA | E NOME | F CELULAR
 //   G E-MAIL | H CPF | I PLACA | J STATUS
 //
@@ -39,8 +40,8 @@
 //   2. Apague o conteudo de Code.gs e cole este arquivo inteiro.
 //   3. Rode setupSheet() uma vez (menu Executar > selecione "setupSheet").
 //      Isso vai pedir autorizacao para acessar suas planilhas do Google -
-//      aceite. Cria so a aba de log de erro; NAO mexe nas 3 abas "Página1"
-//      (elas ja existem com dados reais).
+//      aceite. Cria so a aba de log de erro; NAO mexe nas abas "Página1"
+//      das planilhas listadas em PLANILHAS (elas ja existem com dados reais).
 //   4. Icone de engrenagem (Configuracoes do projeto) > Propriedades do
 //      script > adicione WEBHOOK_SECRET com um valor aleatorio (ex.: gere
 //      com `openssl rand -hex 16` no terminal). Esse segredo NUNCA vai no
@@ -64,7 +65,7 @@
 //      e vai para o log de erro em vez de para uma planilha).
 //
 // SE UMA LOJA NOVA APARECER: adicione uma linha em LOJA_PARA_PLANILHA
-// apontando para 'everton' | 'wesley' | 'william' e reimplante o Web App.
+// apontando para uma das chaves de PLANILHAS e reimplante o Web App.
 //
 // ATENCAO - validacao em lista (dropdown) da coluna STATUS: se ela estiver
 // configurada so ate a ultima linha atual de cada planilha, pode nao
@@ -81,15 +82,14 @@
 // de acesso/retencao (regra de ouro 9 do CLAUDE.md).
 //
 // ENDPOINT `doGet` - leitura para o relatorio de seguros por loja: o time
-// de seguros preenche manualmente, nas mesmas 3 planilhas, colunas alem do
+// de seguros preenche manualmente, nas mesmas planilhas, colunas alem do
 // contrato A-J documentado acima (OBS, DATA DA VENDA, STATUS DA VENDA,
 // PREMIO LIQUIDO, SEGURADORA, MOTIVO). O `doGet` le essas colunas por NOME
 // do cabecalho (linha 1, normalizado com a mesma `normalizarTexto` usada
-// para loja - sem assumir letra fixa, porque a 3a planilha (wesley) pode
-// nao ter essas colunas na mesma posicao das outras duas) e devolve tudo
-// em JSON, para a rota do painel do gestor (`api/gestor/relatorio-seguros`,
-// fora deste arquivo) sincronizar com a tabela `seguros_indicacao_movida` do
-// Supabase.
+// para loja - sem assumir letra fixa, porque nem todas as planilhas tem
+// essas colunas na mesma posicao) e devolve tudo em JSON, para a rota do
+// painel do gestor (`api/gestor/relatorio-seguros`, fora deste arquivo)
+// sincronizar com a tabela `seguros_indicacao_movida` do Supabase.
 // Cada registro devolvido traz tambem a coluna J STATUS do contrato A-J
 // (`statusNegociacao`: "Sem contato", "Em negociação", "Venda transmitida"...),
 // usada pelo relatorio de desempenho por loja/vendedor
@@ -117,68 +117,141 @@ const ERROS_SHEET_NAME = 'Erros_Webhook';
 const FUSO_HORARIO = 'America/Sao_Paulo';
 
 const PLANILHAS = {
-  everton: '1R8dMI4OIo-BGPfajWq4tctu5ww4QH3JYh5sXbL32Fd0', // SUPPER MOVIDA 1 - EVERTON
-  wesley: '1c_lDJC-63fYYXhHCdo59JIhF83Or_IWIlP24rVzYm8M',  // SUPPER MOVIDA 2 - WESLEY
-  william: '1FRfqCU-xyNsB0BGPRcXh4-mQ9_ze0zai-D8OdHSonjg', // SUPPER MOVIDA 3 - WILLIAM
-  lojaWeb: '1rOVCzW4rI7Z_5s993NxKMT2W9NN4Jghhg1BbSns6Eh0', // LOJA WEB
+  everton: '1R8dMI4OIo-BGPfajWq4tctu5ww4QH3JYh5sXbL32Fd0',    // SUPPER MOVIDA 1 - EVERTON (SPI1)
+  wesley: '1c_lDJC-63fYYXhHCdo59JIhF83Or_IWIlP24rVzYm8M',     // SUPPER MOVIDA 2 - WESLEY (SP1)
+  lojaWeb: '1rOVCzW4rI7Z_5s993NxKMT2W9NN4Jghhg1BbSns6Eh0',    // LOJA WEB
+  katia: '1jDSvIxxw2Z69EZPAEYFeJ_2Dv6kpsbyDSTYBVVrcPUo',      // KATIA (SPI2)
+  nayara: '18QqeV1-UKQu6Akadnw9SxC5Hdfq2CK7RBdqFgCzuvCU',     // NAYARA (SP2)
+  anaBeatriz: '1N88iL_5AJbis9LnEk7NiqBKjvr9dUi9v1BqgQOEUjwE', // ANA BEATRIZ (SP3)
+  andre: '1vSMuEM44tGAuMrq_vCA-T23WgQi5dlzk5mgn2zp1lXE',      // ANDRE (SP4)
 };
 
-// Planilha usada so para o log de erro (ex.: loja sem mapeamento). Reusa a
-// do William; troque se preferir uma planilha de controle dedicada.
-const PLANILHA_ERROS = PLANILHAS.william;
-
-// Loja (normalizada) -> chave em PLANILHAS. Mantenha em sincronia com o
-// valor exato digitado em publicMetadata.loja no Clerk para cada vendedor.
-// Alguns apelidos abaixo (marcados) vieram do "Estabelecimento" real do
-// relatorio do ViaNuvem (vianuvem-import/), que grafa a mesma loja de jeitos
-// diferentes do que os admins digitam no Clerk - confirmado inspecionando
-// um export de verdade (ver memoria do projeto).
+// A planilha do William (SUPPER MOVIDA 3) foi descontinuada em 22/09/2026 na
+// reorganizacao das planilhas por vendedor/regiao (ver LOJA_PARA_PLANILHA
+// abaixo, projeto de expansao Supper Certo) - suas duas lojas (Radial Leste,
+// Sao Miguel Paulista) passaram pra 'nayara' e 'wesley'. A planilha continua
+// existindo no Google Drive com o historico antigo, mas SAIU de PLANILHAS:
+// leads antigos que ainda estejam so la nao sao mais encontrados por
+// encontrarPlacaEmQualquerPlanilha (uma reivindicacao de um lead bem antigo
+// dessas 2 lojas cai no log de erro em vez de atualizar - limitacao aceita,
+// avisar o time se acontecer).
 //
-// AO MOVER UMA LOJA DE PLANILHA (como Penha/Vila Guilherme -> everton e Vila
-// Carrao/Vila Ema -> wesley em 28/07/2026): a mudanca vale so para os leads
-// NOVOS. As linhas antigas ficam onde estao - este script nao migra dados. O
-// UPDATE (reivindicacao de lead pelo portal) lida com isso: procura a placa na
-// planilha da loja atual e, se nao achar, nas outras duas, atualizando a linha
-// onde ela realmente esta (encontrarPlacaEmQualquerPlanilha). Ou seja, nao ha
-// mais log de erro nesse caso - mas o lead continua fisicamente na planilha
-// antiga. Se quiser tudo junto, mova as linhas a mao.
+// Planilha usada so para o log de erro (ex.: loja sem mapeamento). Reusa a
+// do Everton; troque se preferir uma planilha de controle dedicada.
+const PLANILHA_ERROS = PLANILHAS.everton;
+
+// Loja (normalizada) -> chave em PLANILHAS. Mantenha em sincronia com
+// LOJAS_DISPONIVEIS de src/lib/loja.ts e com o valor exato digitado em
+// publicMetadata.loja no Clerk para cada vendedor. Alguns apelidos abaixo
+// (marcados) vieram do "Estabelecimento" real do relatorio do ViaNuvem
+// (vianuvem-import/), que grafa a mesma loja de jeitos diferentes do que os
+// admins digitam no Clerk - confirmado inspecionando um export de verdade
+// (ver memoria do projeto).
+//
+// AO MOVER UMA LOJA DE PLANILHA: a mudanca vale so para os leads NOVOS. As
+// linhas antigas ficam onde estao - este script nao migra dados. O UPDATE
+// (reivindicacao de lead pelo portal) lida com isso: procura a placa na
+// planilha da loja atual e, se nao achar, nas outras (que ainda estejam em
+// PLANILHAS), atualizando a linha onde ela realmente esta
+// (encontrarPlacaEmQualquerPlanilha). Ou seja, nao ha mais log de erro nesse
+// caso - mas o lead continua fisicamente na planilha antiga. Se quiser tudo
+// junto, mova as linhas a mao.
+//
+// Reorganizacao de 22/09/2026: distribuicao nova por vendedor/regiao (imagem
+// "Supper Certo Seguros | Apresentacao Movida"), substituindo o mapa antigo
+// de 3 planilhas (everton/wesley/william) e adicionando roteamento pras 26
+// lojas NOVA de LOJAS_DISPONIVEIS (projeto de expansao Supper Certo, que ate
+// entao so estavam no dropdown de cadastro, sem planilha - um lead delas
+// caia direto no log de erro). A planilha do William foi descontinuada (ver
+// PLANILHA_ERROS acima); Radial Leste e Sao Miguel Paulista, que eram dela,
+// foram para nayara e wesley. Katia, Nayara, Ana Beatriz e Andre sao
+// planilhas novas. "CS Sao Paulo Vila Ema" e "Venda ao Condutor" ficaram de
+// fora (nao viraram loja em LOJAS_DISPONIVEIS - ver loja.ts) e por isso nao
+// tem entrada aqui.
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
-  'Americana': 'everton',
+  // ---- everton (SPI1) ----
   'Campinas Amoreiras': 'everton',
   'Campinas Itapura': 'everton',
   'Campinas Orosimbo': 'everton',
+  'Campinas Orozimbo': 'everton', // apelido ViaNuvem (com Z, confirmado 23/09/2026)
   'Campinas Shop Dom Pedro': 'everton',
   'Campinas - Shopping Dom Pedro': 'everton', // apelido ViaNuvem
   'Seminovos Movida Campinas Shopping Dom Pedro': 'everton', // apelido ViaNuvem
   'Jundiai': 'everton',
-  'Praia Grande': 'everton',
-  'Seminovos Movida Praia Grande - Sp': 'everton', // apelido ViaNuvem
-  'Santos': 'everton',
-  // Movidas da planilha 3 (william) para a 1 (everton) em 28/07/2026, a pedido
-  // do time - leads antigos dessas lojas continuam na planilha 3 (ver abaixo).
-  'Penha': 'everton',
-  'Vila Guilherme': 'everton',
+  'Indaiatuba': 'everton', // NOVA
+  'Sorocaba': 'everton', // NOVA
+  'Sorocaba Dom Aguirre': 'everton', // NOVA
+  'Sorocaba - Dom Aguirre': 'everton', // apelido ViaNuvem
 
+  // ---- wesley (SP1) ----
   'Sao Jose dos Campos': 'wesley',
-  'Suzano': 'wesley',
-  'Seminovos Movida Suzano': 'wesley', // apelido ViaNuvem (limparNomeLoja nao remove o prefixo "Seminovos")
-  'Seminovos Movida Suzano - Sp': 'wesley', // apelido ViaNuvem (variacao com "- SP", como em Praia Grande)
   'Taubate': 'wesley',
-  'Seminovos Movida Auto Shopping Taubate': 'wesley', // apelido ViaNuvem
+  'Auto Shopping Taubate': 'wesley', // NOVA - loja separada de Taubate (confirmado pelo time)
+  'Seminovos Movida Auto Shopping Taubate': 'wesley', // apelido ViaNuvem de Auto Shopping Taubate
   'Guarulhos Timoteo Penteado': 'wesley',
   'Timoteo Penteado': 'wesley', // apelido: planilha "Dados Vendedores por Loja" omite "Guarulhos"
-  'Mogi das Cruzes': 'wesley',
-  'Aricanduva': 'wesley',
   'Itaim Paulista': 'wesley',
-  // Movidas da planilha 3 (william) para a 2 (wesley) em 28/07/2026, a pedido
-  // do time - leads antigos dessas lojas continuam na planilha 3 (ver abaixo).
   'Vila Carrao': 'wesley',
-  'Vila Ema': 'wesley',
+  // Vieram da planilha do William em 22/09/2026 (ver comentario acima).
+  'Sao Miguel': 'wesley',
+  'Sao Miguel Paulista': 'wesley', // apelido ViaNuvem
+  // Veio de everton em 22/09/2026, a pedido do time.
+  'Penha': 'wesley',
 
-  'Radial Leste': 'william',
-  'Sao Paulo Radial Leste': 'william', // apelido ViaNuvem
-  'Sao Miguel': 'william',
-  'Sao Miguel Paulista': 'william', // apelido ViaNuvem
+  // ---- katia (SPI2, nova em 22/09/2026) ----
+  'Americana': 'katia', // era everton ate 22/09/2026
+  'Bauru': 'katia', // NOVA
+  'Limeira': 'katia', // NOVA
+  'Piracicaba': 'katia', // NOVA
+  'Ribeirao Preto': 'katia', // NOVA
+  'Rio Claro': 'katia', // NOVA
+  'Seminovos Movida Rio Claro - Sp': 'katia', // apelido ViaNuvem
+  'Sao Carlos': 'katia', // NOVA
+  'Sao Jose do Rio Preto': 'katia', // NOVA
+  'Sj Rio Preto': 'katia', // apelido ViaNuvem (abreviado)
+
+  // ---- nayara (SP2, nova em 22/09/2026) ----
+  'Aricanduva': 'nayara', // era wesley ate 22/09/2026
+  'Vila Ema': 'nayara', // era wesley ate 22/09/2026
+  'Vila Guilherme': 'nayara', // era everton ate 22/09/2026
+  'Auto Shopping Arena Motors': 'nayara', // NOVA
+  'Seminovos Movida Auto Shopping Arena Motors': 'nayara', // apelido ViaNuvem
+  'Miguel Estefano': 'nayara', // NOVA
+  'Sao Paulo Miguel Estefano': 'nayara', // apelido ViaNuvem
+  'Santana': 'nayara', // NOVA
+  // Veio da planilha do William em 22/09/2026 (ver comentario acima).
+  'Radial Leste': 'nayara',
+  'Sao Paulo Radial Leste': 'nayara', // apelido ViaNuvem
+
+  // ---- anaBeatriz (SP3, nova em 22/09/2026) ----
+  'Praia Grande': 'anaBeatriz', // era everton ate 22/09/2026
+  'Seminovos Movida Praia Grande - Sp': 'anaBeatriz', // apelido ViaNuvem
+  'Santos': 'anaBeatriz', // era everton ate 22/09/2026
+  'Mogi das Cruzes': 'anaBeatriz', // era wesley ate 22/09/2026
+  'Suzano': 'anaBeatriz', // era wesley ate 22/09/2026
+  'Seminovos Movida Suzano': 'anaBeatriz', // apelido ViaNuvem
+  'Seminovos Movida Suzano - Sp': 'anaBeatriz', // apelido ViaNuvem
+  'Auto Shopping Bandeirantes': 'anaBeatriz', // NOVA
+  'Seminovos Movida Auto Shopping Bandeirantes': 'anaBeatriz', // apelido ViaNuvem
+  'Santo Andre': 'anaBeatriz', // NOVA
+  'Sao Bernardo do Campo': 'anaBeatriz', // NOVA
+  'Sao Bernardo Pereira Barreto': 'anaBeatriz', // NOVA
+  'Sao Bernardo - Pereira Barreto': 'anaBeatriz', // apelido ViaNuvem
+
+  // ---- andre (SP4, nova em 22/09/2026) ----
+  'Auto Shopping Autonomistas': 'andre', // NOVA
+  'Seminovos Movida Auto Shopping Autonomistas': 'andre', // apelido ViaNuvem
+  'Auto Shopping Raposo': 'andre', // NOVA
+  'Seminovos Movida Auto Shopping Raposo': 'andre', // apelido ViaNuvem
+  'Auto Shopping Tambore': 'andre', // NOVA
+  'Seminovos Movida Auto Shopping Tambore (Alphaville)': 'andre', // apelido ViaNuvem
+  'Osasco': 'andre', // NOVA
+  'Eliseu de Almeida': 'andre', // NOVA
+  'Sao Paulo Eliseu de Almeida': 'andre', // apelido ViaNuvem
+  'Ermano Marchetti': 'andre', // NOVA
+  'Sao Paulo - Ermano Marchetti': 'andre', // apelido ViaNuvem
+  'Gastao Vidigal': 'andre', // NOVA
+  'Nacoes Unidas': 'andre', // NOVA
 
   'Loja Web': 'lojaWeb',
 });
@@ -209,9 +282,9 @@ function doPost(e) {
     const aba = getAba(planilhaId, SHEET_NAME);
 
     // Ordem exata das colunas A-J da aba "Página1". Uma coluna nova "CANAL"
-    // foi inserida na posicao B nas 3 planilhas (confirmado visualmente em
-    // 09/07/2026 - antes era A-I, sem essa coluna). CANAL vem de
-    // `record.canal` ("Indicacao" = formulario do vendedor, "ViaNuvem" =
+    // foi inserida na posicao B nas 3 planilhas originais (confirmado
+    // visualmente em 09/07/2026 - antes era A-I, sem essa coluna). CANAL vem
+    // de `record.canal` ("Indicacao" = formulario do vendedor, "ViaNuvem" =
     // importacao automatica) - mesmo valor que ja fica gravado na coluna
     // `canal` de `captacoes`. E-MAIL e CPF vem preenchidos quando a
     // captacao veio da importacao do ViaNuvem (vendedor_id = "vianuvem");
@@ -240,7 +313,7 @@ function doPost(e) {
       // preenchimento manual do time).
       //
       // Procura primeiro na planilha resolvida pela loja ATUAL e, se nao
-      // achar, nas outras duas (ver encontrarPlacaEmQualquerPlanilha): quando
+      // achar, nas outras (ver encontrarPlacaEmQualquerPlanilha): quando
       // uma loja muda de planilha, os leads antigos dela ficam onde estavam, e
       // sem esse fallback toda reivindicacao de lead antigo dessas lojas caia
       // no log de erro em vez de atualizar (visto em producao 29/07/2026 com um
@@ -249,7 +322,7 @@ function doPost(e) {
       // planilhas, pra nao mexer em historico que o time ja usa.
       const encontrado = encontrarPlacaEmQualquerPlanilha(aba, r.placa);
       if (!encontrado) {
-        registrarErro('UPDATE sem linha correspondente em nenhuma das 3 planilhas: id ' + (r.id || ''), e);
+        registrarErro('UPDATE sem linha correspondente em nenhuma das planilhas: id ' + (r.id || ''), e);
         return respostaJson({ ok: false });
       }
       encontrado.aba.getRange(encontrado.linha, 2, 1, 8).setValues([[
@@ -305,8 +378,8 @@ function doGet(e) {
 // status_venda/data_venda (que ficam nulos nessas linhas).
 // As colunas de seguro (OBS, DATA DA VENDA,
 // STATUS DA VENDA, PREMIO LIQUIDO, SEGURADORA, MOTIVO) sao achadas pelo
-// NOME do cabecalho da linha 1 - NUNCA por letra fixa - porque so 2 das 3
-// planilhas foram conferidas ao vivo; a 3a pode ter posicoes diferentes.
+// NOME do cabecalho da linha 1 - NUNCA por letra fixa - porque nem todas as
+// planilhas foram conferidas ao vivo; a posicao pode variar entre elas.
 // LOJA e PLACA tambem sao achadas por nome, com fallback pras posicoes
 // fixas D/I (indices 3/8, 0-based) so porque essas duas ja fazem parte do
 // contrato original A-J documentado no topo deste arquivo.
@@ -385,7 +458,7 @@ function acharColunaPorNome(cabecalhos, nomesCandidatos, indiceFixo) {
 // Retorna o numero da linha (1-based, pronto pra usar em getRange) ou -1.
 //
 // Comecava na linha 3 por causa do comentario historico no topo deste arquivo
-// ("linha 2 = cabecalho, dados a partir da linha 3"), que esta errado: nas 3
+// ("linha 2 = cabecalho, dados a partir da linha 3"), que esta errado: nas
 // planilhas reais o cabecalho e a linha 1 e os dados comecam na 2 (confirmado
 // ao vivo, e e assim que o `doGet` le). Com o inicio na 3, a PRIMEIRA linha de
 // dados de cada planilha nunca era encontrada e todo UPDATE nela caia no log de
@@ -402,7 +475,7 @@ function encontrarLinhaPorPlaca(aba, placa) {
 }
 
 // Procura a placa na `abaPreferida` (a da loja atual do registro) e, se nao
-// achar, nas outras abas das 3 planilhas. Devolve { aba, linha } ou null.
+// achar, nas outras abas das demais planilhas. Devolve { aba, linha } ou null.
 // Necessario porque mover uma loja de planilha (LOJA_PARA_PLANILHA) nao move os
 // leads antigos dela: a linha continua na planilha onde foi criada, e e ali que
 // o UPDATE precisa escrever.
@@ -432,7 +505,7 @@ function resolverPlanilhaId(loja) {
 // "MOVIDA - CAMPINAS ITAPURA" e "Campinas Itapura" normalizam igual).
 function normalizarTexto(texto) {
   return String(texto || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/^movida\s*-?\s*/, '')
     .trim()
@@ -448,8 +521,8 @@ function normalizarChavesDoMapa(mapa) {
 }
 
 // Roda uma vez manualmente (menu Executar) para criar a aba de log de erro.
-// Nao cria nem altera as abas "Página1" das 3 planilhas - elas ja existem
-// com dados reais. Autoriza o script a acessar as 3 planilhas.
+// Nao cria nem altera as abas "Página1" das planilhas listadas em PLANILHAS
+// - elas ja existem com dados reais. Autoriza o script a acessar todas elas.
 function setupSheet() {
   Object.keys(PLANILHAS).forEach((chave) => getAba(PLANILHAS[chave], SHEET_NAME));
   getOuCriarAba(PLANILHA_ERROS, ERROS_SHEET_NAME, ['Data/Hora', 'Erro', 'ID do registro (se disponível)']);

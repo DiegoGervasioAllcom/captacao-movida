@@ -40,15 +40,14 @@ export function telefoneFromPublicMetadata(metadata: unknown): string | null {
  * apontam pra essa mesma loja.
  *
  * As 26 marcadas NOVA (projeto de expansao Supper Certo, regionais GSP2-4 e
- * SPI1-2, planilha "NOVAS LOJAS PROJETO SUPPER.xlsx") AINDA NAO tem planilha
- * de destino mapeada em LOJA_PARA_PLANILHA - um lead dessas lojas cai no log
- * de erro do webhook (Erros_Webhook) em vez de chegar em algum vendedor, ate
- * alguem decidir o roteamento (everton/wesley/william ou planilha nova) e
- * adicionar a linha correspondente la. "CS Sao Paulo Vila Ema" (mesma
- * unidade fisica de Vila Ema) e "Venda ao Condutor" (nao e loja fisica)
- * ficaram de fora por decisao do time. "Auto Shopping Taubate", apesar do
- * nome parecido, e loja separada de "Taubate" (confirmado pelo time) - por
- * isso tem entrada propria abaixo, mesmo sendo NOVA.
+ * SPI1-2, planilha "NOVAS LOJAS PROJETO SUPPER.xlsx") ganharam planilha de
+ * destino em LOJA_PARA_PLANILHA em 22/09/2026 (planilhas katia/nayara/
+ * anaBeatriz/andre, novas nessa data, alem de wesley/everton reaproveitadas -
+ * ver o .gs). "CS Sao Paulo Vila Ema" (mesma unidade fisica de Vila Ema) e
+ * "Venda ao Condutor" (nao e loja fisica) ficaram de fora por decisao do
+ * time. "Auto Shopping Taubate", apesar do nome parecido, e loja separada de
+ * "Taubate" (confirmado pelo time) - por isso tem entrada propria abaixo,
+ * mesmo sendo NOVA.
  *
  * "Campinas Shop Dom Pedro" fica sem acento/abreviado de proposito: e a
  * chave exata que existe no mapa (o apelido com "Shopping" tem um hifen
@@ -116,7 +115,7 @@ export const LOJAS_DISPONIVEIS = [
 function normalizarTextoLoja(texto: string): string {
   return texto
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/^movida\s*-?\s*/, "")
     .trim()
@@ -138,6 +137,7 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     "Campinas Amoreiras": "Campinas Amoreiras",
     "Campinas Itapura": "Campinas Itapura",
     "Campinas Orosimbo": "Campinas Orosimbo",
+    "Campinas Orozimbo": "Campinas Orosimbo", // apelido ViaNuvem (com Z, confirmado 23/09/2026)
     "Campinas Shop Dom Pedro": "Campinas Shop Dom Pedro",
     "Campinas - Shopping Dom Pedro": "Campinas Shop Dom Pedro",
     "Seminovos Movida Campinas Shopping Dom Pedro": "Campinas Shop Dom Pedro",
@@ -167,32 +167,44 @@ const LOJA_ALIAS_PARA_OFICIAL: Record<string, (typeof LOJAS_DISPONIVEIS)[number]
     // Lojas novas (projeto de expansao Supper Certo) - so a identidade, sem
     // apelido conhecido ainda (nenhum export real inspecionado por enquanto).
     "Auto Shopping Arena Motors": "Auto Shopping Arena Motors",
+    "Seminovos Movida Auto Shopping Arena Motors": "Auto Shopping Arena Motors", // apelido ViaNuvem
     "Auto Shopping Autonomistas": "Auto Shopping Autonomistas",
+    "Seminovos Movida Auto Shopping Autonomistas": "Auto Shopping Autonomistas", // apelido ViaNuvem
     "Auto Shopping Bandeirantes": "Auto Shopping Bandeirantes",
+    "Seminovos Movida Auto Shopping Bandeirantes": "Auto Shopping Bandeirantes", // apelido ViaNuvem
     "Auto Shopping Raposo": "Auto Shopping Raposo",
+    "Seminovos Movida Auto Shopping Raposo": "Auto Shopping Raposo", // apelido ViaNuvem
     "Auto Shopping Tamboré": "Auto Shopping Tamboré",
+    "Seminovos Movida Auto Shopping Tambore (Alphaville)": "Auto Shopping Tamboré", // apelido ViaNuvem
     "Auto Shopping Taubaté": "Auto Shopping Taubaté",
     "Seminovos Movida Auto Shopping Taubate": "Auto Shopping Taubaté", // apelido ViaNuvem
     Bauru: "Bauru",
     "Eliseu de Almeida": "Eliseu de Almeida",
+    "Sao Paulo Eliseu de Almeida": "Eliseu de Almeida", // apelido ViaNuvem
     "Ermano Marchetti": "Ermano Marchetti",
+    "Sao Paulo - Ermano Marchetti": "Ermano Marchetti", // apelido ViaNuvem
     "Gastão Vidigal": "Gastão Vidigal",
     Indaiatuba: "Indaiatuba",
     Limeira: "Limeira",
     "Miguel Estefano": "Miguel Estefano",
+    "Sao Paulo Miguel Estefano": "Miguel Estefano", // apelido ViaNuvem
     "Nações Unidas": "Nações Unidas",
     Osasco: "Osasco",
     Piracicaba: "Piracicaba",
     "Ribeirão Preto": "Ribeirão Preto",
     "Rio Claro": "Rio Claro",
+    "Seminovos Movida Rio Claro - Sp": "Rio Claro", // apelido ViaNuvem
     Santana: "Santana",
     "Santo André": "Santo André",
     "São Bernardo do Campo": "São Bernardo do Campo",
     "São Bernardo Pereira Barreto": "São Bernardo Pereira Barreto",
+    "Sao Bernardo - Pereira Barreto": "São Bernardo Pereira Barreto", // apelido ViaNuvem
     "São Carlos": "São Carlos",
     "São José do Rio Preto": "São José do Rio Preto",
+    "Sj Rio Preto": "São José do Rio Preto", // apelido ViaNuvem (abreviado)
     Sorocaba: "Sorocaba",
     "Sorocaba Dom Aguirre": "Sorocaba Dom Aguirre",
+    "Sorocaba - Dom Aguirre": "Sorocaba Dom Aguirre", // apelido ViaNuvem
   };
   const normalizado: Record<string, (typeof LOJAS_DISPONIVEIS)[number]> = {};
   for (const [chave, valor] of Object.entries(mapa)) {
