@@ -19,7 +19,7 @@ import {
 // depois que a conta e confirmada, /api/vendedor/perfil promove esses
 // valores para `publicMetadata` no servidor. `role` nunca e definido por
 // aqui: sem role, o app ja trata como "vendedor" (menor privilegio, ver
-// src/lib/roles.ts). E-mail restrito ao dominio corporativo @movida.com.br
+// src/lib/roles.ts). E-mail restrito ao dominio corporativo @movida.com.br ou @csfrotas.com.br
 // (emailCorporativoValido) - o Clerk nao tem essa regra nativa.
 
 function goHome() {
@@ -54,7 +54,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
     e.preventDefault();
     if (!isLoaded || busy) return;
     if (!emailCorporativoValido(email)) {
-      setError("Use seu e-mail corporativo (@movida.com.br).");
+      setError("Use seu e-mail corporativo (@movida.com.br ou @csfrotas.com.br).");
       return;
     }
     if (!telefoneValido(telefone)) {
@@ -161,7 +161,7 @@ export default function SignUpForm({ onVoltar }: { onVoltar: () => void }) {
           type="email"
           autoComplete="email"
           aria-label="E-mail"
-          placeholder="E-mail corporativo (@movida.com.br)"
+          placeholder="E-mail corporativo"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
