@@ -57,11 +57,12 @@ export function cpfValido(valor: string): boolean {
   return d === `${d.slice(0, 9)}${d1}${d2}`;
 }
 
-const DOMINIO_EMAIL_CORPORATIVO = "@movida.com.br";
+const DOMINIOS_EMAIL_CORPORATIVO = ["@movida.com.br", "@csfrotas.com.br"];
 
-/** Autocadastro do vendedor exige e-mail corporativo (@movida.com.br). */
+/** Autocadastro do vendedor exige e-mail corporativo (@movida.com.br ou @csfrotas.com.br). */
 export function emailCorporativoValido(valor: string): boolean {
-  return valor.trim().toLowerCase().endsWith(DOMINIO_EMAIL_CORPORATIVO);
+  const email = valor.trim().toLowerCase();
+  return DOMINIOS_EMAIL_CORPORATIVO.some((d) => email.endsWith(d));
 }
 
 /**
