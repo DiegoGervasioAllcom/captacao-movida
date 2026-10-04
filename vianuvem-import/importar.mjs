@@ -746,37 +746,68 @@ async function importar() {
 
   let importados = 0;
   let ignorados = 0;
+  const DRY_RUN = process.env.VIANUVEM_DRY_RUN === "1";
 
+  // Dedup por placa em TODA a tabela (qualquer origem) - decisao do projeto:
+  // se um vendedor ja indicou esse veiculo, ou se essa proposta ja foi
+  // importada antes, nao duplica. Uma consulta por lote de placas em vez de
+  // uma por linha (o relatorio pode ter varias dezenas ou centenas de linhas).
+  const leads = [];
   for (const linhaBruta of linhas) {
     const lead = mapearLinha(linhaBruta, colEstabelecimento, colAbertoPor);
-
-    if (!lead.placa || !lead.nomeCliente || !lead.telefone) {
+    // So a PLACA e indispensavel: ela e a unica chave de dedup. Sem placa nao
+    // da pra saber se o lead ja foi importado, e ele seria regravado a cada
+    // execucao (a cada 20 min). Nome e telefone vazios NAO bloqueiam mais -
+    // o lead entra e o time completa depois (decisao do projeto, 04/10/2026:
+    // antes ~38% das linhas do relatorio eram descartadas por telefone vazio).
+    if (!lead.placa) {
       console.warn(
-        `[vianuvem-import] Linha sem placa/nome/telefone, pulando (proposta ${lead.numeroProposta}).`
+        `[vianuvem-import] Linha sem placa, pulando (proposta ${lead.numeroProposta}).`
       );
       ignorados += 1;
       continue;
     }
+    if (!lead.nomeCliente || !lead.telefone) {
+      console.warn(
+        `[vianuvem-import] Lead incompleto sera importado mesmo assim (proposta ${lead.numeroProposta}): falta ${
+          [!lead.nomeCliente && "nome", !lead.telefone && "telefone"].filter(Boolean).join(" e ")
+        }.`
+      );
+    }
+    leads.push(lead);
+  }
 
-    // Dedup por placa em TODA a tabela (qualquer origem) - decisao do
-    // projeto: se um vendedor ja indicou esse veiculo, ou se essa proposta
-    // ja foi importada antes, nao duplica.
-    const { data: existente, error: erroBusca } = await supabase
+  const placasExistentes = new Set();
+  const placas = [...new Set(leads.map((l) => l.placa))];
+  for (let i = 0; i < placas.length; i += 200) {
+    const lote = placas.slice(i, i + 200);
+    const { data, error: erroBusca } = await supabase
       .from("captacoes")
-      .select("id")
-      .eq("placa", lead.placa)
-      .limit(1)
-      .maybeSingle();
-
+      .select("placa")
+      .in("placa", lote);
     if (erroBusca) {
-      console.error(
-        `[vianuvem-import] Erro ao checar placa ${mascararPlaca(lead.placa)}:`,
-        erroBusca.message
-      );
+      // Sem saber o que ja existe, abortar e melhor que arriscar duplicar.
+      throw new Error(`Erro ao checar placas existentes: ${erroBusca.message}`);
+    }
+    for (const r of data ?? []) placasExistentes.add(r.placa);
+  }
+  console.log(
+    `[vianuvem-import] ${leads.length} linha(s) validas, ${placasExistentes.size} placa(s) ja no banco.`
+  );
+
+  for (const lead of leads) {
+    if (placasExistentes.has(lead.placa)) {
+      ignorados += 1;
       continue;
     }
-    if (existente) {
-      ignorados += 1;
+    // Mesma placa repetida no proprio arquivo: so a primeira entra.
+    placasExistentes.add(lead.placa);
+
+    if (DRY_RUN) {
+      importados += 1;
+      console.log(
+        `[vianuvem-import] (dry-run) importaria placa ${mascararPlaca(lead.placa)} - loja ${lead.loja}.`
+      );
       continue;
     }
 
@@ -784,8 +815,10 @@ async function importar() {
       vendedor_id: "vianuvem",
       vendedor_nome: lead.vendedorNome || "ViaNuvem (importacao automatica)",
       loja: lead.loja,
-      nome_cliente: lead.nomeCliente,
-      telefone: lead.telefone,
+      // As colunas sao NOT NULL: sem nome vai um texto padrao (visivel pro
+      // time na planilha), sem telefone vai vazio (nao inventa numero).
+      nome_cliente: lead.nomeCliente || "Nome nao informado",
+      telefone: lead.telefone || "",
       placa: lead.placa,
       cpf: lead.cpf,
       email: lead.email,
