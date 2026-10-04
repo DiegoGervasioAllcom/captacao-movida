@@ -182,6 +182,15 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sorocaba': 'everton', // NOVA
   'Sorocaba Dom Aguirre': 'everton', // NOVA
   'Sorocaba - Dom Aguirre': 'everton', // apelido ViaNuvem
+  // Vieram de nayara em 04/10/2026, a pedido do time (Vila Guilherme ja foi
+  // do everton ate 22/09/2026; Radial Leste veio da planilha do William).
+  'Vila Guilherme': 'everton',
+  'Auto Shopping Arena Motors': 'everton',
+  'Arena Motors': 'everton', // grafia curta
+  'Seminovos Movida Auto Shopping Arena Motors': 'everton', // apelido ViaNuvem
+  'Santana': 'everton',
+  'Radial Leste': 'everton',
+  'Sao Paulo Radial Leste': 'everton', // apelido ViaNuvem
 
   // ---- wesley (SP1) ----
   'Sao Jose dos Campos': 'wesley',
@@ -224,13 +233,10 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sj Rio Preto': 'katia', // apelido ViaNuvem (abreviado)
 
   // ---- nayara (SP2, nova em 22/09/2026) ----
-  'Vila Guilherme': 'nayara', // era everton ate 22/09/2026
-  'Auto Shopping Arena Motors': 'nayara', // NOVA
-  'Seminovos Movida Auto Shopping Arena Motors': 'nayara', // apelido ViaNuvem
-  'Santana': 'nayara', // NOVA
-  // Veio da planilha do William em 22/09/2026 (ver comentario acima).
-  'Radial Leste': 'nayara',
-  'Sao Paulo Radial Leste': 'nayara', // apelido ViaNuvem
+  // Sem lojas desde 04/10/2026: Aricanduva, Vila Ema e Miguel Estefano foram
+  // para wesley, e Vila Guilherme, Arena Motors, Santana e Radial Leste para
+  // everton (a pedido do time). A planilha segue em PLANILHAS - o historico
+  // dela continua la e o UPDATE (reivindicacao de lead antigo) ainda a procura.
 
   // ---- anaBeatriz (SP3, nova em 22/09/2026) ----
   'Praia Grande': 'anaBeatriz', // era everton ate 22/09/2026
