@@ -165,9 +165,9 @@ const PLANILHA_ERROS = PLANILHAS.everton;
 // caia direto no log de erro). A planilha do William foi descontinuada (ver
 // PLANILHA_ERROS acima); Radial Leste e Sao Miguel Paulista, que eram dela,
 // foram para nayara e wesley. Katia, Nayara, Ana Beatriz e Andre sao
-// planilhas novas. "CS Sao Paulo Vila Ema" e "Venda ao Condutor" ficaram de
-// fora (nao viraram loja em LOJAS_DISPONIVEIS - ver loja.ts) e por isso nao
-// tem entrada aqui.
+// planilhas novas. "Venda ao Condutor" ficou de fora (nao e loja fisica). Em
+// 04/10/2026 Aricanduva, Vila Ema, Miguel Estefano e "CS Sao Paulo Vila Ema"
+// (que nao era loja do portal, ver loja.ts) foram para wesley.
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   // ---- everton (SPI1) ----
   'Campinas Amoreiras': 'everton',
@@ -197,6 +197,19 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sao Miguel Paulista': 'wesley', // apelido ViaNuvem
   // Veio de everton em 22/09/2026, a pedido do time.
   'Penha': 'wesley',
+  // Passaram de nayara para wesley em 04/10/2026, a pedido do time (Aricanduva
+  // e Vila Ema ja foram do wesley ate 22/09/2026).
+  'Aricanduva': 'wesley',
+  'Vila Ema': 'wesley',
+  'Miguel Estefano': 'wesley',
+  'Sao Paulo Miguel Estefano': 'wesley', // apelido ViaNuvem
+  // Mesma unidade fisica de Vila Ema; nao e loja do portal (fora de
+  // LOJAS_DISPONIVEIS) nem existe no ViaNuvem do importer, mas se o nome
+  // chegar por qualquer origem o lead vai pra planilha do wesley em vez do log
+  // de erro.
+  'CS Sao Paulo Vila Ema': 'wesley',
+  'CS Vila Ema': 'wesley',
+  'Seminovos CS Sao Paulo Vila Ema': 'wesley',
 
   // ---- katia (SPI2, nova em 22/09/2026) ----
   'Americana': 'katia', // era everton ate 22/09/2026
@@ -211,13 +224,9 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sj Rio Preto': 'katia', // apelido ViaNuvem (abreviado)
 
   // ---- nayara (SP2, nova em 22/09/2026) ----
-  'Aricanduva': 'nayara', // era wesley ate 22/09/2026
-  'Vila Ema': 'nayara', // era wesley ate 22/09/2026
   'Vila Guilherme': 'nayara', // era everton ate 22/09/2026
   'Auto Shopping Arena Motors': 'nayara', // NOVA
   'Seminovos Movida Auto Shopping Arena Motors': 'nayara', // apelido ViaNuvem
-  'Miguel Estefano': 'nayara', // NOVA
-  'Sao Paulo Miguel Estefano': 'nayara', // apelido ViaNuvem
   'Santana': 'nayara', // NOVA
   // Veio da planilha do William em 22/09/2026 (ver comentario acima).
   'Radial Leste': 'nayara',
