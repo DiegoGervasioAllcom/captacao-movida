@@ -24,7 +24,12 @@ de sistema necessárias — nada de `apt-get`/`sudo` no host.
 3. Baixa a planilha do `fullSignedURL` recebido e lê as linhas (`xlsx`).
 4. Para cada processo: normaliza a placa e pula se ela **já existir em
    `captacoes`, de qualquer origem** (formulário do vendedor ou importação
-   anterior) — evita duplicar lead do mesmo veículo.
+   anterior) — evita duplicar lead do mesmo veículo. **Só a placa é
+   obrigatória** (é a chave de dedup): sem placa a linha é pulada; sem nome
+   ou telefone o lead entra mesmo assim (nome vira "Nome nao informado",
+   telefone fica vazio) e o log avisa "Lead incompleto sera importado mesmo
+   assim". Antes de 04/10/2026 essas linhas eram descartadas (~38% das linhas
+   do relatório tinham telefone vazio).
 5. Insere os novos com `vendedor_id = "vianuvem"` e `canal = "ViaNuvem"`
    (usado pela coluna CANAL nas planilhas). O Database Webhook do Supabase
    (já configurado) dispara sozinho e roteia para a planilha certa do
