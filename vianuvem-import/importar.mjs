@@ -779,14 +779,29 @@ async function importar() {
 
   const placasExistentes = new Set();
   const placas = [...new Set(leads.map((l) => l.placa))];
-  for (let i = 0; i < placas.length; i += 200) {
-    const lote = placas.slice(i, i + 200);
-    const { data, error: erroBusca } = await supabase
-      .from("captacoes")
-      .select("placa")
-      .in("placa", lote);
+  // Lotes de 50 (URL curta) e ate 3 tentativas por lote: um "fetch failed"
+  // pontual de rede (visto em producao em 05/10/2026, derrubou a execucao
+  // inteira) nao deve custar 20 minutos ate o proximo cron. Se continuar
+  // falhando, aborta - sem saber o que ja existe, gravar arriscaria duplicar.
+  const TAMANHO_LOTE = 50;
+  const TENTATIVAS = 3;
+  for (let i = 0; i < placas.length; i += TAMANHO_LOTE) {
+    const lote = placas.slice(i, i + TAMANHO_LOTE);
+    let data = null;
+    let erroBusca = null;
+    for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa += 1) {
+      ({ data, error: erroBusca } = await supabase
+        .from("captacoes")
+        .select("placa")
+        .in("placa", lote));
+      if (!erroBusca) break;
+      console.warn(
+        `[vianuvem-import] Falha ao checar placas existentes (tentativa ${tentativa}/${TENTATIVAS}): ` +
+          `${erroBusca.message} | ${String(erroBusca.details || "").slice(0, 300)}`
+      );
+      if (tentativa < TENTATIVAS) await new Promise((r) => setTimeout(r, tentativa * 2000));
+    }
     if (erroBusca) {
-      // Sem saber o que ja existe, abortar e melhor que arriscar duplicar.
       throw new Error(`Erro ao checar placas existentes: ${erroBusca.message}`);
     }
     for (const r of data ?? []) placasExistentes.add(r.placa);
