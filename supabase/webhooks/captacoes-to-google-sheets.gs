@@ -165,9 +165,9 @@ const PLANILHA_ERROS = PLANILHAS.everton;
 // caia direto no log de erro). A planilha do William foi descontinuada (ver
 // PLANILHA_ERROS acima); Radial Leste e Sao Miguel Paulista, que eram dela,
 // foram para nayara e wesley. Katia, Nayara, Ana Beatriz e Andre sao
-// planilhas novas. "Venda ao Condutor" ficou de fora (nao e loja fisica). Em
-// 04/10/2026 Aricanduva, Vila Ema, Miguel Estefano e "CS Sao Paulo Vila Ema"
-// (que nao era loja do portal, ver loja.ts) foram para wesley.
+// planilhas novas. "Venda ao Condutor" ficou de fora (nao e loja fisica). "CS Sao
+// Paulo Vila Ema" nao e loja do portal (ver loja.ts), mas tem entrada abaixo em
+// nayara, como no quadro da apresentacao.
 const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   // ---- everton (SPI1) ----
   'Campinas Amoreiras': 'everton',
@@ -182,15 +182,6 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sorocaba': 'everton', // NOVA
   'Sorocaba Dom Aguirre': 'everton', // NOVA
   'Sorocaba - Dom Aguirre': 'everton', // apelido ViaNuvem
-  // Vieram de nayara em 04/10/2026, a pedido do time (Vila Guilherme ja foi
-  // do everton ate 22/09/2026; Radial Leste veio da planilha do William).
-  'Vila Guilherme': 'everton',
-  'Auto Shopping Arena Motors': 'everton',
-  'Arena Motors': 'everton', // grafia curta
-  'Seminovos Movida Auto Shopping Arena Motors': 'everton', // apelido ViaNuvem
-  'Santana': 'everton',
-  'Radial Leste': 'everton',
-  'Sao Paulo Radial Leste': 'everton', // apelido ViaNuvem
 
   // ---- wesley (SP1) ----
   'Sao Jose dos Campos': 'wesley',
@@ -206,19 +197,6 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sao Miguel Paulista': 'wesley', // apelido ViaNuvem
   // Veio de everton em 22/09/2026, a pedido do time.
   'Penha': 'wesley',
-  // Passaram de nayara para wesley em 04/10/2026, a pedido do time (Aricanduva
-  // e Vila Ema ja foram do wesley ate 22/09/2026).
-  'Aricanduva': 'wesley',
-  'Vila Ema': 'wesley',
-  'Miguel Estefano': 'wesley',
-  'Sao Paulo Miguel Estefano': 'wesley', // apelido ViaNuvem
-  // Mesma unidade fisica de Vila Ema; nao e loja do portal (fora de
-  // LOJAS_DISPONIVEIS) nem existe no ViaNuvem do importer, mas se o nome
-  // chegar por qualquer origem o lead vai pra planilha do wesley em vez do log
-  // de erro.
-  'CS Sao Paulo Vila Ema': 'wesley',
-  'CS Vila Ema': 'wesley',
-  'Seminovos CS Sao Paulo Vila Ema': 'wesley',
 
   // ---- katia (SPI2, nova em 22/09/2026) ----
   'Americana': 'katia', // era everton ate 22/09/2026
@@ -233,10 +211,23 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Sj Rio Preto': 'katia', // apelido ViaNuvem (abreviado)
 
   // ---- nayara (SP2, nova em 22/09/2026) ----
-  // Sem lojas desde 04/10/2026: Aricanduva, Vila Ema e Miguel Estefano foram
-  // para wesley, e Vila Guilherme, Arena Motors, Santana e Radial Leste para
-  // everton (a pedido do time). A planilha segue em PLANILHAS - o historico
-  // dela continua la e o UPDATE (reivindicacao de lead antigo) ainda a procura.
+  'Aricanduva': 'nayara', // era wesley ate 22/09/2026
+  'Vila Ema': 'nayara', // era wesley ate 22/09/2026
+  // Aparece no quadro da Nayara da apresentacao "Supper Certo Seguros" (04/10/2026).
+  // Nao e loja do portal nem existe no ViaNuvem do importer; so entra se o nome
+  // chegar por outra origem (antes cairia no log de erro).
+  'CS Sao Paulo Vila Ema': 'nayara',
+  'CS Vila Ema': 'nayara',
+  'Seminovos CS Sao Paulo Vila Ema': 'nayara',
+  'Vila Guilherme': 'nayara', // era everton ate 22/09/2026
+  'Auto Shopping Arena Motors': 'nayara', // NOVA
+  'Seminovos Movida Auto Shopping Arena Motors': 'nayara', // apelido ViaNuvem
+  'Miguel Estefano': 'nayara', // NOVA
+  'Sao Paulo Miguel Estefano': 'nayara', // apelido ViaNuvem
+  'Santana': 'nayara', // NOVA
+  // Veio da planilha do William em 22/09/2026 (ver comentario acima).
+  'Radial Leste': 'nayara',
+  'Sao Paulo Radial Leste': 'nayara', // apelido ViaNuvem
 
   // ---- anaBeatriz (SP3, nova em 22/09/2026) ----
   'Praia Grande': 'anaBeatriz', // era everton ate 22/09/2026
