@@ -225,6 +225,7 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Miguel Estefano': 'nayara', // NOVA
   'Sao Paulo Miguel Estefano': 'nayara', // apelido ViaNuvem
   'Santana': 'nayara', // NOVA
+  'Sao Paulo - Santana': 'nayara', // apelido ViaNuvem
   // Veio da planilha do William em 22/09/2026 (ver comentario acima).
   'Radial Leste': 'nayara',
   'Sao Paulo Radial Leste': 'nayara', // apelido ViaNuvem
