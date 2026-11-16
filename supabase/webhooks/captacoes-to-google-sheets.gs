@@ -124,6 +124,7 @@ const PLANILHAS = {
   nayara: '18QqeV1-UKQu6Akadnw9SxC5Hdfq2CK7RBdqFgCzuvCU',     // NAYARA (SP2)
   anaBeatriz: '1N88iL_5AJbis9LnEk7NiqBKjvr9dUi9v1BqgQOEUjwE', // ANA BEATRIZ (SP3)
   andre: '1vSMuEM44tGAuMrq_vCA-T23WgQi5dlzk5mgn2zp1lXE',      // ANDRE (SP4)
+  vilaCarrao: '1Hrw951MkWZXMKQkoNfGpaaWo7r8gnlxZAn0oO-iYOaM', // VILA CARRAO (planilha propria)
 };
 
 // A planilha do William (SUPPER MOVIDA 3) foi descontinuada em 22/09/2026 na
@@ -191,7 +192,7 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Guarulhos Timoteo Penteado': 'wesley',
   'Timoteo Penteado': 'wesley', // apelido: planilha "Dados Vendedores por Loja" omite "Guarulhos"
   'Itaim Paulista': 'wesley',
-  'Vila Carrao': 'wesley',
+  'Vila Carrao': 'vilaCarrao', // planilha propria (antes: wesley)
   // Vieram da planilha do William em 22/09/2026 (ver comentario acima).
   'Sao Miguel': 'wesley',
   'Sao Miguel Paulista': 'wesley', // apelido ViaNuvem
