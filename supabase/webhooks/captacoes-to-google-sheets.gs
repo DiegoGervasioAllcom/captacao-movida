@@ -241,6 +241,7 @@ const LOJA_PARA_PLANILHA = normalizarChavesDoMapa({
   'Auto Shopping Bandeirantes': 'anaBeatriz', // NOVA
   'Seminovos Movida Auto Shopping Bandeirantes': 'anaBeatriz', // apelido ViaNuvem
   'Santo Andre': 'anaBeatriz', // NOVA
+  'Santo Andre - Grand Plaza': 'anaBeatriz', // apelido ViaNuvem
   'Sao Bernardo do Campo': 'anaBeatriz', // NOVA
   'Sao Bernardo Pereira Barreto': 'anaBeatriz', // NOVA
   'Sao Bernardo - Pereira Barreto': 'anaBeatriz', // apelido ViaNuvem
